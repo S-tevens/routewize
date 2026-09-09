@@ -1,4 +1,4 @@
-# routewise (MVP)
+# routewise
 
 Drop-in proxy for OpenAI/Anthropic chat completions that:
 1. **Caches** semantically similar prompts so repeat/near-duplicate requests don't hit the real API.
