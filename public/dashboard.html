@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>routewise — Savings dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.5 6 L7 9 L17 15 L6.5 18' fill='none' stroke='%23cbf24f' stroke-width='4.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  /* Single committed dark theme — this dashboard is designed as one visual
+     world (the routewise product surface), so colors are painted explicitly
+     rather than adapting to the viewer's light/dark preference. */
+  :root{
+    --bg:#0a0c08;
+    --surface:#0f120c;
+    --surface-2:#161a12;
+    --line:#232819;
+    --line-soft:#171b12;
+    --text:#eef2e6;
+    --muted:#7f8873;
+    --lime:#cbf24f;
+    --lav:#c9c0fb;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  [hidden]{ display:none !important; }
+
+  /* ---------------- header ---------------- */
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;
+    padding:18px 32px; border-bottom:1px solid var(--line);
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand .glyph{ color:var(--lime); display:flex; }
+  .brand .name{ font-weight:700; font-size:20px; letter-spacing:-.015em; line-height:1.1; }
+  .brand .sub{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+
+  .toolbar{ display:flex; align-items:center; gap:10px; }
+  .keybox{
+    display:flex; align-items:center; gap:10px;
+    background:var(--surface-2); border:1px solid var(--line);
+    border-radius:999px; padding:5px 5px 5px 14px;
+  }
+  .keybox .dot{ width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
+  .keybox .dot.live{ background:var(--lime); }
+  .keybox .dot.error{ background:#d2694f; }
+  .keybox input{
+    border:none; outline:none; background:transparent;
+    font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--text);
+    width:186px; letter-spacing:.01em;
+  }
+  .keybox input::placeholder{ color:var(--muted); font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:0; }
+  .keybox button{
+    font-family:'Plus Jakarta Sans', sans-serif; font-weight:700; font-size:13px;
+    padding:8px 17px; border-radius:999px; border:none;
+    background:var(--text); color:#0d1009; cursor:pointer;
+  }
+  .keybox button:hover{ opacity:.88; }
+  .icon-btn{
+    width:38px; height:38px; border-radius:50%;
+    background:var(--surface-2); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer;
+  }
+  .icon-btn:hover{ color:var(--text); border-color:#333b28; }
+  .icon-btn:focus-visible, .keybox button:focus-visible, .period button:focus-visible{ outline:2px solid var(--lime); outline-offset:2px; }
+
+  /* ---------------- layout ---------------- */
+  .wrap{ max-width:1240px; margin:0 auto; padding:28px 32px 64px; }
+  @media (max-width:620px){ .wrap{ padding:20px 16px 48px; } .topbar{ padding:16px; } }
+
+  /* ---------------- hero ---------------- */
+  .hero{ border:1px solid var(--line); border-radius:16px; background:var(--surface); overflow:hidden; margin-bottom:34px; }
+  .hero-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; padding:26px 28px 0; }
+  .hero-label{ font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); }
+  .hero-value{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
+  .hero-value .amount{ font-family:'JetBrains Mono', monospace; font-size:clamp(38px,5vw,54px); font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1; }
+  .trend{
+    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:500;
+    color:var(--lime); border:1px solid rgba(203,242,79,.35); background:rgba(203,242,79,.07);
+    padding:6px 11px; border-radius:999px; white-space:nowrap;
+  }
+  .period{ display:flex; gap:2px; background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:4px; }
+  .period button{
+    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:500; letter-spacing:.06em;
+    padding:7px 16px; border-radius:999px; border:none; background:transparent; color:var(--muted); cursor:pointer;
+  }
+  .period button:hover{ color:var(--text); }
+  .period button.active{ background:var(--text); color:#0d1009; font-weight:600; }
+  #sparkline{ display:block; width:100%; height:224px; }
+  .hero-foot{ display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); }
+  @media (max-width:620px){ .hero-foot{ grid-template-columns:1fr; } }
+  .hero-foot .item{ padding:20px 28px; }
+  .hero-foot .item + .item{ border-left:1px solid var(--line); }
+  @media (max-width:620px){ .hero-foot .item + .item{ border-left:none; border-top:1px solid var(--line); } }
+  .hero-foot .k{ font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); }
+  .hero-foot .v{ font-family:'JetBrains Mono', monospace; font-size:23px; font-weight:600; margin-top:7px; font-variant-numeric:tabular-nums; }
+
+  /* ---------------- section head ---------------- */
+  .section-head{ display:flex; justify-content:space-between; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+  .section-head h2{ font-size:18px; font-weight:700; margin:0; letter-spacing:-.01em; }
+  .section-head p{ font-size:13px; color:var(--muted); margin:0; }
+
+  /* ---------------- outcome tiles ---------------- */
+  .tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:30px; }
+  @media (max-width:820px){ .tiles{ grid-template-columns:1fr; } }
+  .tile{ border-radius:14px; padding:24px 26px 26px; min-height:166px; display:flex; flex-direction:column; justify-content:space-between; position:relative; }
+  .tile.lime{ background:var(--lime); color:#14180b; }
+  .tile.lav{ background:var(--lav); color:#191340; }
+  .tile.flagship{ background:var(--surface); border:1px solid var(--line); color:var(--text); }
+  .tile .label{ font-size:14.5px; font-weight:600; }
+  .tile .value{ font-family:'JetBrains Mono', monospace; font-size:40px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1; }
+  .tile .caption{ font-family:'JetBrains Mono', monospace; font-size:11.5px; margin-top:10px; opacity:.62; }
+  .tile .corner-dot{ position:absolute; top:26px; right:26px; width:8px; height:8px; border-radius:50%; background:var(--text); }
+
+  /* ---------------- panels ---------------- */
+  .twoup{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+  @media (max-width:820px){ .twoup{ grid-template-columns:1fr; } }
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px 26px 28px; }
+  .panel h3{ font-size:15.5px; font-weight:700; margin:0 0 22px; }
+
+  .share-row + .share-row{ margin-top:20px; }
+  .share-top{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:9px; }
+  .share-top .name{ font-size:13.5px; }
+  .share-top .stat{ font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .track{ height:3px; border-radius:999px; background:var(--line); overflow:hidden; }
+  .track span{ display:block; height:100%; border-radius:999px; }
+
+  .day-row{ display:grid; grid-template-columns:52px 58px 1fr auto; align-items:center; gap:14px; }
+  .day-row + .day-row{ margin-top:24px; }
+  .day-row .date{ font-size:13px; font-weight:600; }
+  .day-row .req{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); }
+  .day-row .amount{ font-family:'JetBrains Mono', monospace; font-size:13px; font-variant-numeric:tabular-nums; }
+  .day-track{ height:2px; background:var(--line); border-radius:999px; overflow:hidden; }
+  .day-track span{ display:block; height:100%; background:var(--lime); border-radius:999px; }
+
+  /* ---------------- activity ---------------- */
+  .activity{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px 26px 10px; }
+  .activity-head{ display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-bottom:18px; }
+  .activity-head h3{ font-size:15.5px; font-weight:700; margin:0; }
+  .activity-head .count{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted); }
+  .table-scroll{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; }
+  th{
+    text-align:left; font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:500;
+    letter-spacing:.13em; text-transform:uppercase; color:var(--muted);
+    padding:0 0 14px; border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  th:last-child, td:last-child{ text-align:right; }
+  td{
+    padding:19px 0; border-bottom:1px solid var(--line-soft); white-space:nowrap;
+    font-family:'JetBrains Mono', monospace; font-size:12.5px; font-variant-numeric:tabular-nums;
+  }
+  td.model{ color:var(--muted); }
+  tbody tr:last-child td{ border-bottom:none; }
+  th + th, td + td{ padding-left:26px; }
+  .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:'Plus Jakarta Sans', sans-serif; font-size:12px; font-weight:500;
+    padding:5px 13px; border-radius:999px; border:1px solid var(--line); color:var(--text);
+  }
+  .pill .dot{ width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
+  .pill.hit .dot{ background:var(--lime); }
+  .pill.routed .dot{ background:var(--lav); }
+  .pill.flagship .dot{ background:var(--text); }
+
+  /* ---------------- states ---------------- */
+  .empty, .error-msg{
+    background:var(--surface); border:1px dashed var(--line); border-radius:14px;
+    padding:44px 24px; text-align:center; color:var(--muted); font-size:14.5px; line-height:1.6;
+  }
+  .error-msg{ border-color:#5a3227; color:#d2694f; border-style:solid; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="glyph">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M17.5 6 L7 9 L17 15 L6.5 18"/>
+      </svg>
+    </span>
+    <div>
+      <div class="name">routewise</div>
+      <div class="sub">Savings dashboard</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="keybox">
+      <span class="dot" id="statusDot"></span>
+      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewise API key" aria-label="routewise API key">
+      <button id="connectBtn">View</button>
+    </div>
+    <button class="icon-btn" id="refreshBtn" title="Refresh" aria-label="Refresh">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div id="emptyState" class="empty">
+    Enter your routewise API key above to see your cache hit rate, routing breakdown, and estimated savings.
+  </div>
+
+  <div id="errorState" class="error-msg" hidden></div>
+
+  <div id="dashboard" hidden>
+
+    <section class="hero">
+      <div class="hero-head">
+        <div>
+          <div class="hero-label">Total estimated savings</div>
+          <div class="hero-value">
+            <span class="amount" id="tSavings">—</span>
+            <span class="trend" id="tTrend">—</span>
+          </div>
+        </div>
+        <div class="period" id="periodRow" role="group" aria-label="Time period">
+          <button data-days="7">7D</button>
+          <button data-days="14">14D</button>
+          <button data-days="30">30D</button>
+          <button data-days="0">ALL</button>
+        </div>
+      </div>
+
+      <svg id="sparkline" aria-hidden="true"></svg>
+
+      <div class="hero-foot">
+        <div class="item"><div class="k">Requests</div><div class="v" id="fTotal">—</div></div>
+        <div class="item"><div class="k">Days active</div><div class="v" id="fDays">—</div></div>
+        <div class="item"><div class="k">Best day</div><div class="v" id="fBest">—</div></div>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <h2>Requests, by outcome</h2>
+      <p>What happened to every request in the selected period</p>
+    </div>
+
+    <div class="tiles">
+      <div class="tile lime">
+        <div class="label">Cache hits</div>
+        <div>
+          <div class="value" id="tCache">—</div>
+          <div class="caption" id="tCacheCount">—</div>
+        </div>
+      </div>
+      <div class="tile lav">
+        <div class="label">Routed cheaper</div>
+        <div>
+          <div class="value" id="tRouted">—</div>
+          <div class="caption" id="tRoutedCount">—</div>
+        </div>
+      </div>
+      <div class="tile flagship">
+        <span class="corner-dot"></span>
+        <div class="label">Flagship</div>
+        <div>
+          <div class="value" id="tFlagship">—</div>
+          <div class="caption" id="tFlagshipCount">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="twoup">
+      <div class="panel">
+        <h3>Share of traffic</h3>
+        <div class="share-row">
+          <div class="share-top"><span class="name">Cache hits</span><span class="stat" id="sCache">—</span></div>
+          <div class="track"><span id="barCache" style="background:var(--lime); width:0%"></span></div>
+        </div>
+        <div class="share-row">
+          <div class="share-top"><span class="name">Routed cheaper</span><span class="stat" id="sRouted">—</span></div>
+          <div class="track"><span id="barRouted" style="background:var(--lav); width:0%"></span></div>
+        </div>
+        <div class="share-row">
+          <div class="share-top"><span class="name">Flagship</span><span class="stat" id="sFlagship">—</span></div>
+          <div class="track"><span id="barFlagship" style="background:var(--text); width:0%"></span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Savings by day</h3>
+        <div id="dayRows"></div>
+      </div>
+    </div>
+
+    <div class="activity">
+      <div class="activity-head">
+        <h3>Recent activity</h3>
+        <span class="count" id="activityCount">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Time</th><th>Requested</th><th>Used</th><th>Outcome</th><th>Saved</th></tr></thead>
+          <tbody id="recentBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const ACTIVITY_ROWS = 6;
+
+let allDaily = [];
+let allRecent = [];
+let totalLogged = 0;
+let selectedDays = 14;
+let realKey = "";
+
+function storedKey() { try { return localStorage.getItem("rw_api_key") || ""; } catch { return ""; } }
+function saveKey(k) { try { localStorage.setItem("rw_api_key", k); } catch {} }
+
+function maskKey(k) { return k.length > 14 ? k.slice(0, 8) + "······" + k.slice(-4) : k; }
+function fmtMoney(n) { return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtPct(part, total) { return total > 0 ? ((part / total) * 100).toFixed(1) + "%" : "0.0%"; }
+// Provider model ids carry a release-date suffix that adds nothing in a table.
+function shortModel(m) { return String(m).replace(/-\d{8}$/, ""); }
+
+function outcomeFor(e) {
+  if (e.cache_hit) return { label: "Cache hit", cls: "hit" };
+  if (e.matched_rule && e.matched_rule !== "default-fallback" && e.matched_rule !== "forced-flagship") {
+    return { label: "Routed cheaper", cls: "routed" };
+  }
+  return { label: "Flagship", cls: "flagship" };
+}
+
+function renderSparkline(daily) {
+  const svg = $("sparkline");
+  svg.innerHTML = "";
+  const width = svg.clientWidth || 1160;
+  const height = svg.clientHeight || 224;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  if (daily.length === 0) return;
+
+  const padTop = 24, padBottom = 2;
+  const max = Math.max(...daily.map((d) => d.savings), 0.0001);
+  const plotH = height - padTop - padBottom;
+
+  let points;
+  if (daily.length === 1) {
+    const y = padTop + (1 - daily[0].savings / max) * plotH;
+    points = [[0, y], [width, y]];
+  } else {
+    const stepX = width / (daily.length - 1);
+    points = daily.map((d, i) => [i * stepX, padTop + (1 - d.savings / max) * plotH]);
+  }
+
+  const ns = "http://www.w3.org/2000/svg";
+  const lime = cssVar("--lime");
+  const linePath = points.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(" ");
+
+  const defs = document.createElementNS(ns, "defs");
+  defs.innerHTML = `<linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="${lime}" stop-opacity="0.26"/>
+    <stop offset="100%" stop-color="${lime}" stop-opacity="0"/>
+  </linearGradient>`;
+  svg.appendChild(defs);
+
+  const area = document.createElementNS(ns, "path");
+  area.setAttribute("d", `${linePath} L${points[points.length - 1][0]},${height} L${points[0][0]},${height} Z`);
+  area.setAttribute("fill", "url(#sparkFill)");
+  svg.appendChild(area);
+
+  const line = document.createElementNS(ns, "path");
+  line.setAttribute("d", linePath);
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", lime);
+  line.setAttribute("stroke-width", "2");
+  line.setAttribute("stroke-linecap", "round");
+  line.setAttribute("stroke-linejoin", "round");
+  svg.appendChild(line);
+
+  const last = points[points.length - 1];
+  const dot = document.createElementNS(ns, "circle");
+  dot.setAttribute("cx", Math.min(last[0], width - 4));
+  dot.setAttribute("cy", last[1]);
+  dot.setAttribute("r", "4.5");
+  dot.setAttribute("fill", lime);
+  svg.appendChild(dot);
+}
+
+function renderDayRows(daily) {
+  const container = $("dayRows");
+  container.innerHTML = "";
+  const days = daily.slice(-6).reverse();
+  const max = Math.max(...days.map((d) => d.savings), 0.0001);
+  for (const d of days) {
+    const row = document.createElement("div");
+    row.className = "day-row";
+    const label = new Date(d.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const pct = Math.max((d.savings / max) * 100, 2);
+    row.innerHTML = `
+      <span class="date">${label}</span>
+      <span class="req">${d.requests} req</span>
+      <span class="day-track"><span style="width:${pct}%"></span></span>
+      <span class="amount">${fmtMoney(d.savings)}</span>`;
+    container.appendChild(row);
+  }
+}
+
+// Every displayed number is recomputed from the already-fetched daily
+// breakdown for the selected window, so the period control is a real filter
+// rather than a label on a static snapshot.
+function renderForPeriod() {
+  const daily = selectedDays > 0 ? allDaily.slice(-selectedDays) : allDaily;
+  const t = daily.reduce((acc, d) => {
+    acc.requests += d.requests;
+    acc.savings += d.savings;
+    acc.cacheHits += d.cacheHits;
+    acc.routedCheaper += d.routedCheaper;
+    acc.flagshipPassthrough += d.flagshipPassthrough;
+    return acc;
+  }, { requests: 0, savings: 0, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 0 });
+
+  if (t.requests === 0) {
+    $("dashboard").hidden = true;
+    $("emptyState").hidden = false;
+    $("emptyState").textContent = "No requests in this window yet — try a wider period.";
+    return;
+  }
+  $("dashboard").hidden = false;
+  $("emptyState").hidden = true;
+
+  $("tSavings").textContent = fmtMoney(t.savings);
+  $("fTotal").textContent = t.requests.toLocaleString();
+  $("fDays").textContent = daily.length;
+  const best = daily.reduce((a, b) => (b.savings > (a?.savings ?? -1) ? b : a), null);
+  $("fBest").textContent = best ? fmtMoney(best.savings) : "—";
+
+  if (daily.length >= 2) {
+    const last = daily[daily.length - 1].savings;
+    const prev = daily[daily.length - 2].savings;
+    const delta = prev > 0 ? ((last - prev) / prev) * 100 : 0;
+    $("tTrend").textContent = (delta >= 0 ? "+" : "") + delta.toFixed(0) + "% vs prior day";
+  } else {
+    $("tTrend").textContent = "day 1";
+  }
+
+  $("tCache").textContent = fmtPct(t.cacheHits, t.requests);
+  $("tCacheCount").textContent = `${t.cacheHits.toLocaleString()} free`;
+  $("tRouted").textContent = fmtPct(t.routedCheaper, t.requests);
+  $("tRoutedCount").textContent = `${t.routedCheaper.toLocaleString()} downgraded`;
+  $("tFlagship").textContent = fmtPct(t.flagshipPassthrough, t.requests);
+  $("tFlagshipCount").textContent = `${t.flagshipPassthrough.toLocaleString()} unchanged`;
+
+  $("sCache").textContent = `${t.cacheHits} · ${fmtPct(t.cacheHits, t.requests)}`;
+  $("sRouted").textContent = `${t.routedCheaper} · ${fmtPct(t.routedCheaper, t.requests)}`;
+  $("sFlagship").textContent = `${t.flagshipPassthrough} · ${fmtPct(t.flagshipPassthrough, t.requests)}`;
+  $("barCache").style.width = fmtPct(t.cacheHits, t.requests);
+  $("barRouted").style.width = fmtPct(t.routedCheaper, t.requests);
+  $("barFlagship").style.width = fmtPct(t.flagshipPassthrough, t.requests);
+
+  renderSparkline(daily);
+  renderDayRows(daily);
+
+  const cutoff = selectedDays > 0 && daily.length > 0 ? daily[0].date : null;
+  const rows = (cutoff ? allRecent.filter((e) => e.timestamp.slice(0, 10) >= cutoff) : allRecent).slice(0, ACTIVITY_ROWS);
+  $("activityCount").textContent = `last ${rows.length} of ${totalLogged.toLocaleString()}`;
+
+  const tbody = $("recentBody");
+  tbody.innerHTML = "";
+  for (const e of rows) {
+    const o = outcomeFor(e);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${new Date(e.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+      <td class="model">${shortModel(e.model_requested)}</td>
+      <td>${e.cache_hit ? "cache" : shortModel(e.model_used)}</td>
+      <td><span class="pill ${o.cls}"><span class="dot"></span>${o.label}</span></td>
+      <td>${fmtMoney(e.estimated_savings)}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function setPeriod(days) {
+  selectedDays = days;
+  document.querySelectorAll("#periodRow button").forEach((b) => b.classList.toggle("active", Number(b.dataset.days) === days));
+  renderForPeriod();
+}
+
+async function loadStats() {
+  if (!realKey) return;
+  saveKey(realKey);
+  $("statusDot").className = "dot";
+  $("errorState").hidden = true;
+
+  try {
+    const res = await fetch("/api/stats", { headers: { Authorization: "Bearer " + realKey } });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error?.message || `Request failed (${res.status})`);
+    }
+    const stats = await res.json();
+    $("statusDot").className = "dot live";
+
+    if (stats.totalRequests === 0) {
+      $("dashboard").hidden = true;
+      $("emptyState").hidden = false;
+      $("emptyState").textContent = "Connected — no requests logged yet for this key. Once traffic flows through the proxy, results appear here.";
+      return;
+    }
+
+    allDaily = stats.daily;
+    allRecent = stats.recent;
+    totalLogged = stats.totalRequests;
+    setPeriod(selectedDays);
+  } catch (err) {
+    $("statusDot").className = "dot error";
+    $("dashboard").hidden = true;
+    $("emptyState").hidden = true;
+    $("errorState").hidden = false;
+    $("errorState").textContent = err.message;
+  }
+}
+
+const keyInput = $("apiKey");
+keyInput.addEventListener("input", () => { realKey = keyInput.value.trim(); });
+keyInput.addEventListener("focus", () => { if (realKey) keyInput.value = realKey; });
+keyInput.addEventListener("blur", () => { if (realKey) keyInput.value = maskKey(realKey); });
+keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { keyInput.blur(); loadStats(); } });
+
+$("connectBtn").addEventListener("click", loadStats);
+$("refreshBtn").addEventListener("click", loadStats);
+$("periodRow").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (btn) setPeriod(Number(btn.dataset.days));
+});
+window.addEventListener("resize", () => { if (!$("dashboard").hidden) renderSparkline(selectedDays > 0 ? allDaily.slice(-selectedDays) : allDaily); });
+
+document.querySelector('#periodRow button[data-days="14"]').classList.add("active");
+
+const saved = storedKey();
+if (saved) {
+  realKey = saved;
+  keyInput.value = maskKey(saved);
+  loadStats();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+# Copy this file to customers.yaml and fill in real provider keys.
+# One entry per customer. The customer authenticates to the proxy with
+# `api_key` (their key for OUR service, not their OpenAI/Anthropic key).
+
+customers:
+  - api_key: "rw_live_demo_4a21"
+    name: "Demo Agent Co"
+
+    # The customer's own provider keys — we never eat their inference cost.
+    provider_keys:
+      openai: "sk-REPLACE_ME"
+      anthropic: "sk-ant-REPLACE_ME"
+
+    # Used when no routing rule matches, and when a request forces "flagship".
+    default:
+      provider: openai
+      model: gpt-4o
+
+    cache:
+      enabled: true
+      similarity_threshold: 0.92
+      ttl_seconds: 86400 # 24h
+
+    # Rules are evaluated top to bottom; first match wins. Anything that
+    # doesn't match falls through to `default` above (no silent downgrade).
+    routing:
+      rules:
+        - name: "short-classification"
+          match:
+            max_prompt_tokens: 200
+            keywords: ["classify", "categorize", "label this", "sentiment"]
+          route_to:
+            provider: openai
+            model: gpt-4o-mini
+
+        - name: "faq-templated"
+          match:
+            keywords: ["faq", "summarize", "extract", "reformat"]
+            max_prompt_tokens: 800
+          route_to:
+            provider: anthropic
+            model: claude-3-5-haiku-20241022
