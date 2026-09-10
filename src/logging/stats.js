@@ -29,7 +29,10 @@ export function computeStats(customerName) {
   for (const e of events) {
     totalSavings += e.estimated_savings ?? 0;
     const day = e.timestamp.slice(0, 10);
-    const bucket = byDay.get(day) ?? { requests: 0, savings: 0, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 0 };
+    const bucket = byDay.get(day) ?? { requests: 0, savings: 0, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 0, tokensRemoved: 0, documentsSelected: 0, documentsReceived: 0 };
+    bucket.tokensRemoved += e.optimization?.estimated_tokens_removed ?? 0;
+    bucket.documentsSelected += e.optimization?.context_documents_selected ?? 0;
+    bucket.documentsReceived += e.optimization?.context_documents_received ?? 0;
     bucket.requests += 1;
     bucket.savings += e.estimated_savings ?? 0;
 
