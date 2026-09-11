@@ -6,6 +6,19 @@ customers:
   - api_key: "rw_live_demo_4a21"
     name: "Demo Agent Co"
 
+    # Enable only after supplying real provider keys and your contracted rates.
+    # Rates are USD per MILLION tokens. No fallback pricing is used for evaluations.
+    evaluation:
+      enabled: false
+      pricing: {}
+      # Example structure (replace every value with verified rates):
+      # "openai/gpt-4o": must be nested under pricing, with:
+      # input: <USD per million uncached input tokens>
+      # output: <USD per million output tokens>
+      # cached_input: <USD per million cached input tokens>
+      # source: "Your provider pricing page or contract"
+      # as_of: "YYYY-MM-DD"
+
     # The customer's own provider keys — we never eat their inference cost.
     provider_keys:
       openai: "sk-REPLACE_ME"
