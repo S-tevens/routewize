@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 
 // Straight passthrough — the customer's request is already OpenAI-shaped.
-export async function callOpenAI({ apiKey, model, messages, temperature, max_tokens }) {
-  const client = new OpenAI({ apiKey });
+export async function callOpenAI({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2 }) {
+  const client = new OpenAI({ apiKey, timeout, maxRetries });
   const completion = await client.chat.completions.create({
     model,
     messages,

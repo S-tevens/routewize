@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const LOG_DIR = new URL("../../logs/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const LOG_DIR = fileURLToPath(new URL("../../logs/", import.meta.url));
 export const LOG_FILE = path.join(LOG_DIR, "requests.log");
 
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });

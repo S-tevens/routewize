@@ -17,7 +17,9 @@ import { LOG_FILE } from "../src/logging/logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const inputPath = process.argv[2] || "sample-data/llm_api_requests_300.jsonl";
-const configPath = path.join(__dirname, "..", "src", "config", "customers.yaml");
+const configPath = process.env.CUSTOMERS_CONFIG
+  ? path.resolve(process.cwd(), process.env.CUSTOMERS_CONFIG)
+  : path.join(__dirname, "..", "src", "config", "customers.yaml");
 
 await loadRemotePricing();
 const { byApiKey } = loadCustomers(configPath);

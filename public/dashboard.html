@@ -6,213 +6,154 @@
 <title>routewise — Savings dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.5 6 L7 9 L17 15 L6.5 18' fill='none' stroke='%23cbf24f' stroke-width='4.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
-<style>
-  /* Single committed dark theme — this dashboard is designed as one visual
-     world (the routewise product surface), so colors are painted explicitly
-     rather than adapting to the viewer's light/dark preference. */
-  :root{
-    --bg:#0a0c08;
-    --surface:#0f120c;
-    --surface-2:#161a12;
-    --line:#232819;
-    --line-soft:#171b12;
-    --text:#eef2e6;
-    --muted:#7f8873;
-    --lime:#cbf24f;
-    --lav:#c9c0fb;
-  }
-
-  *{ box-sizing:border-box; }
-  html,body{ margin:0; }
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-    min-height:100vh;
-    -webkit-font-smoothing:antialiased;
-  }
-  [hidden]{ display:none !important; }
-
-  /* ---------------- header ---------------- */
-  .topbar{
-    display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;
-    padding:18px 32px; border-bottom:1px solid var(--line);
-  }
-  .brand{ display:flex; align-items:center; gap:12px; }
-  .brand .glyph{ color:var(--lime); display:flex; }
-  .brand .name{ font-weight:700; font-size:20px; letter-spacing:-.015em; line-height:1.1; }
-  .brand .sub{ font-size:12.5px; color:var(--muted); margin-top:2px; }
-
-  .toolbar{ display:flex; align-items:center; gap:10px; }
-  .keybox{
-    display:flex; align-items:center; gap:10px;
-    background:var(--surface-2); border:1px solid var(--line);
-    border-radius:999px; padding:5px 5px 5px 14px;
-  }
-  .keybox .dot{ width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
-  .keybox .dot.live{ background:var(--lime); }
-  .keybox .dot.error{ background:#d2694f; }
-  .keybox input{
-    border:none; outline:none; background:transparent;
-    font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--text);
-    width:186px; letter-spacing:.01em;
-  }
-  .keybox input::placeholder{ color:var(--muted); font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:0; }
-  .keybox button{
-    font-family:'Plus Jakarta Sans', sans-serif; font-weight:700; font-size:13px;
-    padding:8px 17px; border-radius:999px; border:none;
-    background:var(--text); color:#0d1009; cursor:pointer;
-  }
-  .keybox button:hover{ opacity:.88; }
-  .icon-btn{
-    width:38px; height:38px; border-radius:50%;
-    background:var(--surface-2); border:1px solid var(--line);
-    display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer;
-  }
-  .icon-btn:hover{ color:var(--text); border-color:#333b28; }
-  .icon-btn:focus-visible, .keybox button:focus-visible, .period button:focus-visible{ outline:2px solid var(--lime); outline-offset:2px; }
-
-  /* ---------------- layout ---------------- */
-  .wrap{ max-width:1240px; margin:0 auto; padding:28px 32px 64px; }
-  @media (max-width:620px){ .wrap{ padding:20px 16px 48px; } .topbar{ padding:16px; } }
-
-  /* ---------------- hero ---------------- */
-  .hero{ border:1px solid var(--line); border-radius:16px; background:var(--surface); overflow:hidden; margin-bottom:34px; }
-  .hero-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; padding:26px 28px 0; }
-  .hero-label{ font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); }
-  .hero-value{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
-  .hero-value .amount{ font-family:'JetBrains Mono', monospace; font-size:clamp(38px,5vw,54px); font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1; }
-  .trend{
-    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:500;
-    color:var(--lime); border:1px solid rgba(203,242,79,.35); background:rgba(203,242,79,.07);
-    padding:6px 11px; border-radius:999px; white-space:nowrap;
-  }
-  .period{ display:flex; gap:2px; background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:4px; }
-  .period button{
-    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:500; letter-spacing:.06em;
-    padding:7px 16px; border-radius:999px; border:none; background:transparent; color:var(--muted); cursor:pointer;
-  }
-  .period button:hover{ color:var(--text); }
-  .period button.active{ background:var(--text); color:#0d1009; font-weight:600; }
-  #sparkline{ display:block; width:100%; height:224px; }
-  .hero-foot{ display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); }
-  @media (max-width:620px){ .hero-foot{ grid-template-columns:1fr; } }
-  .hero-foot .item{ padding:20px 28px; }
-  .hero-foot .item + .item{ border-left:1px solid var(--line); }
-  @media (max-width:620px){ .hero-foot .item + .item{ border-left:none; border-top:1px solid var(--line); } }
-  .hero-foot .k{ font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); }
-  .hero-foot .v{ font-family:'JetBrains Mono', monospace; font-size:23px; font-weight:600; margin-top:7px; font-variant-numeric:tabular-nums; }
-
-  /* ---------------- section head ---------------- */
-  .section-head{ display:flex; justify-content:space-between; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
-  .section-head h2{ font-size:18px; font-weight:700; margin:0; letter-spacing:-.01em; }
-  .section-head p{ font-size:13px; color:var(--muted); margin:0; }
-
-  /* ---------------- outcome tiles ---------------- */
-  .tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:30px; }
-  @media (max-width:820px){ .tiles{ grid-template-columns:1fr; } }
-  .tile{ border-radius:14px; padding:24px 26px 26px; min-height:166px; display:flex; flex-direction:column; justify-content:space-between; position:relative; }
-  .tile.lime{ background:var(--lime); color:#14180b; }
-  .tile.lav{ background:var(--lav); color:#191340; }
-  .tile.flagship{ background:var(--surface); border:1px solid var(--line); color:var(--text); }
-  .tile .label{ font-size:14.5px; font-weight:600; }
-  .tile .value{ font-family:'JetBrains Mono', monospace; font-size:40px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1; }
-  .tile .caption{ font-family:'JetBrains Mono', monospace; font-size:11.5px; margin-top:10px; opacity:.62; }
-  .tile .corner-dot{ position:absolute; top:26px; right:26px; width:8px; height:8px; border-radius:50%; background:var(--text); }
-
-  /* ---------------- panels ---------------- */
-  .twoup{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
-  @media (max-width:820px){ .twoup{ grid-template-columns:1fr; } }
-  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px 26px 28px; }
-  .panel h3{ font-size:15.5px; font-weight:700; margin:0 0 22px; }
-
-  .share-row + .share-row{ margin-top:20px; }
-  .share-top{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:9px; }
-  .share-top .name{ font-size:13.5px; }
-  .share-top .stat{ font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
-  .track{ height:3px; border-radius:999px; background:var(--line); overflow:hidden; }
-  .track span{ display:block; height:100%; border-radius:999px; }
-
-  .day-row{ display:grid; grid-template-columns:52px 58px 1fr auto; align-items:center; gap:14px; }
-  .day-row + .day-row{ margin-top:24px; }
-  .day-row .date{ font-size:13px; font-weight:600; }
-  .day-row .req{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); }
-  .day-row .amount{ font-family:'JetBrains Mono', monospace; font-size:13px; font-variant-numeric:tabular-nums; }
-  .day-track{ height:2px; background:var(--line); border-radius:999px; overflow:hidden; }
-  .day-track span{ display:block; height:100%; background:var(--lime); border-radius:999px; }
-
-  /* ---------------- activity ---------------- */
-  .activity{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px 26px 10px; }
-  .activity-head{ display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-bottom:18px; }
-  .activity-head h3{ font-size:15.5px; font-weight:700; margin:0; }
-  .activity-head .count{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted); }
-  .table-scroll{ overflow-x:auto; }
-  table{ width:100%; border-collapse:collapse; }
-  th{
-    text-align:left; font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:500;
-    letter-spacing:.13em; text-transform:uppercase; color:var(--muted);
-    padding:0 0 14px; border-bottom:1px solid var(--line); white-space:nowrap;
-  }
-  th:last-child, td:last-child{ text-align:right; }
-  td{
-    padding:19px 0; border-bottom:1px solid var(--line-soft); white-space:nowrap;
-    font-family:'JetBrains Mono', monospace; font-size:12.5px; font-variant-numeric:tabular-nums;
-  }
-  td.model{ color:var(--muted); }
-  tbody tr:last-child td{ border-bottom:none; }
-  th + th, td + td{ padding-left:26px; }
-  .pill{
-    display:inline-flex; align-items:center; gap:8px;
-    font-family:'Plus Jakarta Sans', sans-serif; font-size:12px; font-weight:500;
-    padding:5px 13px; border-radius:999px; border:1px solid var(--line); color:var(--text);
-  }
-  .pill .dot{ width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
-  .pill.hit .dot{ background:var(--lime); }
-  .pill.routed .dot{ background:var(--lav); }
-  .pill.flagship .dot{ background:var(--text); }
-
-  /* ---------------- states ---------------- */
-  .empty, .error-msg{
-    background:var(--surface); border:1px dashed var(--line); border-radius:14px;
-    padding:44px 24px; text-align:center; color:var(--muted); font-size:14.5px; line-height:1.6;
-  }
-  .error-msg{ border-color:#5a3227; color:#d2694f; border-style:solid; }
-</style>
+<link rel="stylesheet" href="/reference-ui.css">
 </head>
 <body>
+<div class="app-shell">
 
 <header class="topbar">
-  <div class="brand">
-    <span class="glyph">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M17.5 6 L7 9 L17 15 L6.5 18"/>
-      </svg>
-    </span>
-    <div>
-      <div class="name">routewise</div>
-      <div class="sub">Savings dashboard</div>
-    </div>
-  </div>
+  <a class="brand brand-logo" href="#playground" aria-label="Routewise playground">
+    <img src="/routewise-logo.png" width="1600" height="548" alt="Routewise">
+  </a>
 
   <div class="toolbar">
-    <div class="keybox">
+    <div class="connection" aria-live="polite">
       <span class="dot" id="statusDot"></span>
-      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewise API key" aria-label="routewise API key">
-      <button id="connectBtn">View</button>
+      <span id="statusLabel">Not connected</span>
     </div>
-    <button class="icon-btn" id="refreshBtn" title="Refresh" aria-label="Refresh">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
-    </button>
+    <div class="keybox">
+      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewise API key" aria-label="routewise API key">
+      <button id="connectBtn">Connect</button>
+    </div>
   </div>
 </header>
 
 <main class="wrap">
 
-  <div id="emptyState" class="empty">
-    Enter your routewise API key above to see your cache hit rate, routing breakdown, and estimated savings.
+  <nav class="workspace-nav" aria-label="Workspace">
+    <button class="active" data-view="playground" aria-pressed="true">Playground</button>
+    <button data-view="usage" aria-pressed="false">Usage & savings</button>
+    <button data-view="proof" aria-pressed="false">Savings proof</button>
+    <button data-view="guide" aria-pressed="false">Quickstart</button>
+    <span>OpenAI + Anthropic</span>
+  </nav>
+
+  <section id="playgroundView">
+    <div class="workspace-heading"><div><h1>Optimize your context</h1><p>Keep useful information. Send fewer tokens.</p></div><span class="preview-badge">Preview · No model charges</span></div>
+    <div class="studio">
+      <form id="optimizeForm" class="editor-card">
+        <div class="card-heading"><h2>Your input</h2><button type="button" id="loadExample" class="text-button">Load example ↗</button></div>
+        <label for="questionInput">What are you asking?</label>
+        <textarea id="questionInput" rows="3" required placeholder="e.g. What is our refund policy?"></textarea>
+        <label for="contextInput">Reference context <span>Optional</span></label>
+        <p class="field-help">Paste documents or notes. Separate documents with a line containing <code>---</code>.</p>
+        <textarea id="contextInput" rows="6" placeholder="Paste the information your AI needs to answer…"></textarea>
+        <div class="options-heading">Optimization settings</div>
+        <label class="option-row"><span><strong>Compress context</strong><small>Remove repeated paragraphs from reference text.</small></span><input type="checkbox" id="compressionToggle" checked></label>
+        <label class="option-row"><span><strong>Select relevant context</strong><small>Keep whole documents that fit your budget.</small></span><input type="checkbox" id="selectionToggle" checked></label>
+        <div class="budget-row"><label for="tokenBudget">Context token budget <small>Estimated</small></label><input type="number" id="tokenBudget" min="1" max="32000" value="2000" required></div>
+        <label for="protectedDocs">Always keep <span>Optional document numbers</span></label>
+        <input id="protectedDocs" class="proof-input" placeholder="e.g. 1, 3" aria-describedby="protectedHelp">
+        <p id="protectedHelp" class="field-help">These documents stay unchanged, even if they exceed your context budget.</p>
+        <div id="previewError" class="inline-error" role="alert" hidden></div>
+        <button type="submit" id="runOptimization" class="primary-button">Optimize context <span>→</span></button>
+        <p class="field-help footnote">Uses your connected Routewise key. No answer is generated.</p>
+      </form>
+      <section class="result-card" aria-label="Optimization result" aria-live="polite">
+        <div class="card-heading"><h2>Your result</h2><span id="resultStatus" class="neutral-badge">Ready when you are</span></div>
+        <div id="previewPlaceholder" class="result-placeholder"><span class="result-symbol" aria-hidden="true">↘</span><h3>Your results appear here.</h3><p>Run optimization to compare token counts and review the context kept for your model.</p><div class="placeholder-flow">Original context <span>→</span> Optimized context</div></div>
+        <div id="previewResult" hidden>
+          <div class="reduction-head"><span>Estimated token reduction</span><strong id="reductionPercent">0%</strong></div>
+          <div class="comparison"><div><span>Before</span><strong id="tokensBefore">0</strong></div><span aria-hidden="true">→</span><div><span>After</span><strong id="tokensAfter">0</strong></div></div>
+          <p id="documentSummary" class="field-help"></p>
+          <div class="card-heading output-heading"><h3>Text sent to the model</h3><button type="button" id="copyResult" class="text-button">Copy</button></div>
+          <pre id="optimizedOutput" tabindex="0"></pre>
+          <p class="field-help">Counts are estimates. Review retained context for missing facts before using it in your app.</p>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section id="guideView" hidden>
+    <div class="workspace-heading"><div><h1>Connect your application</h1><p>Bring your existing Routewise key and connect your application.</p></div></div>
+    <div class="guide-card"><h2>1. Connect your key</h2><p>Enter your Routewise customer key in the header. Your provider keys stay in the server configuration.</p><h2>2. Preview your context</h2><p>Use the Playground to inspect compression and document selection without making a paid model call.</p><h2>3. Send an optimized model request</h2><p>Use the chat endpoint with your question and reference documents. Caching and routing follow your customer configuration.</p><pre id="integrationCode"></pre><p class="field-help">Text requests only. Streaming and tool calls are not supported yet. The preview endpoint does not add entries to usage history.</p></div>
+  </section>
+
+  <section id="proofView" hidden>
+    <div class="workspace-heading"><div><h1>Prove the savings</h1><p>Compare real model calls before changing your application.</p></div></div>
+    <div class="studio">
+      <form id="proofForm" class="editor-card">
+        <div class="card-heading"><h2>Compare your Playground input</h2></div>
+        <p class="field-help">Uses the question, documents, protection settings and optimizations from Playground. Both answers are generated fresh; response caching is bypassed.</p>
+        <p id="proofConfig" class="proof-notice" role="status">Connect a Routewise key to check evaluation availability.</p>
+        <label for="expectedPhrases">What must the answer include?</label>
+        <textarea id="expectedPhrases" rows="3" required placeholder="One required phrase per line, e.g. 30 days"></textarea>
+        <p class="field-help">Case-insensitive phrase checks only. They do not establish factual correctness or equivalent answer quality.</p>
+        <label for="proofOverhead">Your optimization overhead per request (USD)</label>
+        <input id="proofOverhead" class="proof-input" type="number" min="0" max="100" step="any" required placeholder="Include service and infrastructure costs">
+        <p class="field-help">Enter 0 only if no additional costs apply. This is subtracted from savings.</p>
+        <label class="option-row"><span><strong>Include cheaper-model routing</strong><small>Otherwise both calls use your configured default model.</small></span><input type="checkbox" id="proofRouting"></label>
+        <label class="proof-consent"><input type="checkbox" id="proofConsent" required> I understand this makes two paid provider calls, with up to 512 output tokens each. The test itself costs money.</label>
+        <div id="proofError" class="inline-error" role="alert" hidden></div>
+        <button class="primary-button" id="runProof" type="submit">Run paid comparison <span>→</span></button>
+      </form>
+      <section class="proof-report" aria-live="polite">
+        <div class="card-heading"><h2>Evidence report</h2><button id="downloadProof" class="text-button" type="button" hidden>Download report</button></div>
+        <p id="proofState" class="field-help">No live comparison yet. Real provider credentials and confirmed pricing must be configured on the server.</p>
+        <div id="proofResults" hidden>
+          <div class="reduction-head"><span>Net difference for this test request</span><strong id="proofNet">—</strong></div>
+          <dl class="proof-ledger" id="proofLedger"></dl>
+          <p id="proofVerdict" class="proof-notice"></p>
+          <p class="field-help">Provider-reported tokens × customer-supplied rates. These costs have not been reconciled with an invoice. Credits, taxes and unreported fees are excluded. This test does not reduce past spending or prove future savings.</p>
+          <h3>Original answer</h3><pre id="baselineAnswer"></pre>
+          <h3>Optimized answer</h3><pre id="candidateAnswer"></pre>
+          <p id="proofChecks" class="field-help"></p>
+          <p id="proofReceipt" class="field-help"></p>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section id="usageView" hidden>
+
+  <div class="page-intro">
+    <div>
+      <div class="eyebrow">LLM cost control</div>
+      <h1>Workspace overview</h1>
+    </div>
+    <p>Provider spend, estimated savings, and evidence from your comparisons.</p>
   </div>
 
-  <div id="errorState" class="error-msg" hidden></div>
+  <section class="money-overview" aria-label="Costs and savings">
+    <div class="money-heading"><h2>Spend a little wiser.</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
+    <p id="moneyStatus" class="field-help" role="status">Connect your Routewise key to load financial evidence.</p>
+    <div class="money-layout">
+      <div class="money-cards">
+        <article class="money-card spend"><h3>Provider spend <span aria-hidden="true">↗</span></h3><strong id="providerSpend">—</strong><span class="money-badge">From gateway requests</span><p id="providerSpendNote">Waiting for recorded provider usage.</p></article>
+        <article class="money-card potential"><h3>Potential savings <span aria-hidden="true">✧</span></h3><strong id="potentialSavings">—</strong><span class="money-badge">Test-sample potential</span><p id="potentialSavingsNote">Run Savings proof to measure the difference.</p></article>
+        <article class="money-card saved"><div><h3>Cost saved <span class="money-badge">Estimated</span></h3><strong id="costSaved">—</strong></div><p id="costSavedNote">Avoided costs estimated from gateway logs.</p></article>
+        <div class="money-foot"><div><span>Gateway requests</span><strong id="moneyRequests">—</strong></div><div><span>Evaluation provider spend</span><strong id="evaluationSpend">—</strong><small id="evaluationSpendNote">Separate from gateway spend</small></div></div>
+      </div>
+      <section class="money-chart"><div class="money-chart-heading"><h2>Cost comparison</h2><span>Paid evaluations</span></div><p id="comparisonNote">Original vs optimized cost for the same test inputs.</p><div id="comparisonEmpty">Run a paid comparison in Savings proof to build this graph. No financial results are simulated.</div><svg id="costComparison" role="img" aria-label="Original and optimized evaluation costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Original</span><span><i class="legend-candidate"></i> Optimized + overhead</span></div><p class="chart-caption">Includes all priced comparisons. Potential savings only includes pairs passing the required phrase checks.</p></section>
+    </div>
+    <p class="money-disclosure">Amounts use recorded usage and configured rates or explicitly labeled estimates. Not invoice-verified. Potential savings is the difference on tested requests, not a forecast, and is not added to cost saved.</p>
+  </section>
+
+  <div id="emptyState" class="empty" aria-live="polite">
+    <div>
+      <div class="empty-mark" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/><path d="M3 19h18"/></svg>
+      </div>
+      <h2>Connect your workspace</h2>
+      <p>Enter your Routewise API key above to reveal cache performance, routing outcomes, and estimated savings.</p>
+      <span class="privacy">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Your key is saved in this browser
+      </span>
+    </div>
+  </div>
+
+  <div id="errorState" class="error-msg" role="alert" hidden></div>
 
   <div id="dashboard" hidden>
 
@@ -247,16 +188,21 @@
       <p>What happened to every request in the selected period</p>
     </div>
 
+    <div class="panel" style="margin-bottom:24px">
+      <h3>Context optimization</h3>
+      <p id="optimizationSummary" style="color:var(--muted);font-size:16px;margin:0">No context optimization recorded yet.</p>
+    </div>
+
     <div class="tiles">
       <div class="tile lime">
-        <div class="label">Cache hits</div>
+        <div class="label"><span class="tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h11a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H7"/><path d="m8 11-4 4 4 4"/></svg></span>Cache hits</div>
         <div>
           <div class="value" id="tCache">—</div>
           <div class="caption" id="tCacheCount">—</div>
         </div>
       </div>
       <div class="tile lav">
-        <div class="label">Routed cheaper</div>
+        <div class="label"><span class="tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12a4 4 0 0 0 4 4h8"/><path d="m14 15 4 4-4 4"/><path d="M6 8h8"/><path d="m11 5 3 3-3 3"/></svg></span>Routed cheaper</div>
         <div>
           <div class="value" id="tRouted">—</div>
           <div class="caption" id="tRoutedCount">—</div>
@@ -264,7 +210,7 @@
       </div>
       <div class="tile flagship">
         <span class="corner-dot"></span>
-        <div class="label">Flagship</div>
+        <div class="label"><span class="tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="4"/></svg></span>Flagship</div>
         <div>
           <div class="value" id="tFlagship">—</div>
           <div class="caption" id="tFlagshipCount">—</div>
@@ -309,7 +255,9 @@
     </div>
 
   </div>
+  </section>
 </main>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -324,6 +272,28 @@ let realKey = "";
 
 function storedKey() { try { return localStorage.getItem("rw_api_key") || ""; } catch { return ""; } }
 function saveKey(k) { try { localStorage.setItem("rw_api_key", k); } catch {} }
+
+function setEmptyState(title, message) {
+  $("emptyState").innerHTML = `
+    <div>
+      <div class="empty-mark" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/><path d="M3 19h18"/></svg>
+      </div>
+      <h2>${title}</h2>
+      <p>${message}</p>
+      <span class="privacy">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Stored only in this browser
+      </span>
+    </div>`;
+  $("emptyState").hidden = false;
+}
+
+function setLoading(isLoading) {
+  const button = $("connectBtn");
+  button.disabled = isLoading;
+  button.innerHTML = isLoading ? '<span class="loading-ring"></span>Loading' : "Connect";
+}
 
 function maskKey(k) { return k.length > 14 ? k.slice(0, 8) + "······" + k.slice(-4) : k; }
 function fmtMoney(n) { return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -364,6 +334,19 @@ function renderSparkline(daily) {
   const lime = cssVar("--lime");
   const linePath = points.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(" ");
 
+  for (let i = 1; i <= 3; i++) {
+    const guide = document.createElementNS(ns, "line");
+    const y = padTop + (plotH / 4) * i;
+    guide.setAttribute("x1", "0");
+    guide.setAttribute("x2", String(width));
+    guide.setAttribute("y1", String(y));
+    guide.setAttribute("y2", String(y));
+    guide.setAttribute("stroke", cssVar("--line"));
+    guide.setAttribute("stroke-width", "1");
+    guide.setAttribute("stroke-dasharray", "3 7");
+    svg.appendChild(guide);
+  }
+
   const defs = document.createElementNS(ns, "defs");
   defs.innerHTML = `<linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="${lime}" stop-opacity="0.26"/>
@@ -398,6 +381,10 @@ function renderDayRows(daily) {
   const container = $("dayRows");
   container.innerHTML = "";
   const days = daily.slice(-6).reverse();
+  if (days.length === 0) {
+    container.innerHTML = '<p style="margin:0;color:var(--muted);font-size:14px">No savings recorded in this period.</p>';
+    return;
+  }
   const max = Math.max(...days.map((d) => d.savings), 0.0001);
   for (const d of days) {
     const row = document.createElement("div");
@@ -429,8 +416,7 @@ function renderForPeriod() {
 
   if (t.requests === 0) {
     $("dashboard").hidden = true;
-    $("emptyState").hidden = false;
-    $("emptyState").textContent = "No requests in this window yet — try a wider period.";
+    setEmptyState("Nothing in this window", "Try a wider time period to see earlier request activity.");
     return;
   }
   $("dashboard").hidden = false;
@@ -439,6 +425,10 @@ function renderForPeriod() {
   $("tSavings").textContent = fmtMoney(t.savings);
   $("fTotal").textContent = t.requests.toLocaleString();
   $("fDays").textContent = daily.length;
+  const removed = daily.reduce((sum, d) => sum + (d.tokensRemoved ?? 0), 0);
+  const received = daily.reduce((sum, d) => sum + (d.documentsReceived ?? 0), 0);
+  const selected = daily.reduce((sum, d) => sum + (d.documentsSelected ?? 0), 0);
+  $("optimizationSummary").textContent = received ? `${removed.toLocaleString()} estimated input tokens removed · ${selected.toLocaleString()} of ${received.toLocaleString()} context documents retained. Token counts are estimates, not provider billing measurements.` : "No context optimization recorded yet.";
   const best = daily.reduce((a, b) => (b.savings > (a?.savings ?? -1) ? b : a), null);
   $("fBest").textContent = best ? fmtMoney(best.savings) : "—";
 
@@ -447,8 +437,10 @@ function renderForPeriod() {
     const prev = daily[daily.length - 2].savings;
     const delta = prev > 0 ? ((last - prev) / prev) * 100 : 0;
     $("tTrend").textContent = (delta >= 0 ? "+" : "") + delta.toFixed(0) + "% vs prior day";
+    $("tTrend").classList.toggle("negative", delta < 0);
   } else {
     $("tTrend").textContent = "day 1";
+    $("tTrend").classList.remove("negative");
   }
 
   $("tCache").textContent = fmtPct(t.cacheHits, t.requests);
@@ -474,6 +466,10 @@ function renderForPeriod() {
 
   const tbody = $("recentBody");
   tbody.innerHTML = "";
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:30px 0">No recent activity in this period.</td></tr>';
+    return;
+  }
   for (const e of rows) {
     const o = outcomeFor(e);
     const tr = document.createElement("tr");
@@ -497,7 +493,9 @@ async function loadStats() {
   if (!realKey) return;
   saveKey(realKey);
   $("statusDot").className = "dot";
+  $("statusLabel").textContent = "Connecting";
   $("errorState").hidden = true;
+  setLoading(true);
 
   try {
     const res = await fetch("/api/stats", { headers: { Authorization: "Bearer " + realKey } });
@@ -507,11 +505,11 @@ async function loadStats() {
     }
     const stats = await res.json();
     $("statusDot").className = "dot live";
+    $("statusLabel").textContent = "Connected";
 
     if (stats.totalRequests === 0) {
       $("dashboard").hidden = true;
-      $("emptyState").hidden = false;
-      $("emptyState").textContent = "Connected — no requests logged yet for this key. Once traffic flows through the proxy, results appear here.";
+      setEmptyState("Connected and ready", "No requests have been logged for this key yet. Your dashboard will populate as traffic flows through Routewise.");
       return;
     }
 
@@ -521,10 +519,13 @@ async function loadStats() {
     setPeriod(selectedDays);
   } catch (err) {
     $("statusDot").className = "dot error";
+    $("statusLabel").textContent = "Connection failed";
     $("dashboard").hidden = true;
     $("emptyState").hidden = true;
     $("errorState").hidden = false;
     $("errorState").textContent = err.message;
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -535,7 +536,6 @@ keyInput.addEventListener("blur", () => { if (realKey) keyInput.value = maskKey(
 keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { keyInput.blur(); loadStats(); } });
 
 $("connectBtn").addEventListener("click", loadStats);
-$("refreshBtn").addEventListener("click", loadStats);
 $("periodRow").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (btn) setPeriod(Number(btn.dataset.days));
@@ -551,5 +551,8 @@ if (saved) {
   loadStats();
 }
 </script>
+<script src="/workspace.js"></script>
+<script src="/proof.js"></script>
+<script src="/financial-overview.js"></script>
 </body>
 </html>

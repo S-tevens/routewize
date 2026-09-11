@@ -3,8 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 // Translates an OpenAI-shaped chat request to Anthropic's Messages API and
 // back, so the customer always sees an OpenAI-compatible response no matter
 // which provider actually served the request.
-export async function callAnthropic({ apiKey, model, messages, temperature, max_tokens }) {
-  const client = new Anthropic({ apiKey });
+export async function callAnthropic({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2 }) {
+  const client = new Anthropic({ apiKey, timeout, maxRetries });
 
   const systemMessages = messages.filter((m) => m.role === "system").map((m) => m.content);
   const conversation = messages

@@ -1,10 +1,90 @@
-# routewise
+# routewise (MVP)
 
 Drop-in proxy for OpenAI/Anthropic chat completions that:
-1. **Caches** semantically similar prompts so repeat/near-duplicate requests don't hit the real API.
+1. **Caches** semantically similar prompts so repeat/near-duplicate requests don't hit the real API — matching is namespaced per customer, requested model, generation settings (temperature/max_tokens), and resolved route, so a hit can never reuse an answer generated under different instructions or model settings, while real embedding similarity still catches near-duplicate wording within that namespace.
 2. **Routes** simple requests to a cheaper model using rules *you* configure — no auto quality detection.
+3. **Compresses reference context** by removing duplicate prose paragraphs and excess paragraph whitespace, when explicitly enabled.
+4. **Selects context documents** using lexical relevance to the latest user question within a configurable estimated token budget.
 
 Point your app at this proxy instead of calling OpenAI/Anthropic directly. Everything else about your app stays the same.
+
+## Context optimization
+
+### Savings proof: compare paid requests
+
+The **Savings proof** tab uses the current Playground input to run an original and an optimized model request. It requires a real provider key, an explicit paid-call confirmation, expected answer phrases, and an overhead amount supplied by the customer. It does not simulate live savings with demo data.
+
+Enable this per customer only after verifying that customer's rates. Example configuration shape (replace `null` with confirmed USD per million token rates):
+
+```yaml
+evaluation:
+  enabled: true
+  pricing:
+    openai/gpt-4o:
+      input: null
+      output: null
+      cached_input: null
+      source: "Your provider contract or pricing page"
+      as_of: "2026-09-10"
+```
+
+Add a pricing entry for every model selected by routing if enabling routing in the comparison. Null, missing and generic fallback prices are rejected before any calls. Restart the server after changing customer configuration.
+
+Authenticated `GET /v1/evaluations/config` checks readiness. `POST /v1/evaluations` accepts:
+
+```json
+{
+  "confirm_paid_calls": true,
+  "overhead_usd_per_request": 0.0001,
+  "use_routing": false,
+  "max_tokens": 512,
+  "cases": [{
+    "messages": [{"role": "user", "content": "What is the refund policy?"}],
+    "expected_contains": ["30 days"],
+    "rw_optimization": {
+      "compression": true,
+      "selection": true,
+      "max_context_tokens": 2000,
+      "context": [{"id": "policy", "text": "Refunds within 30 days.", "protected": true}]
+    }
+  }]
+}
+```
+
+Send an `Idempotency-Key` header (16–100 letters, digits, hyphens or underscores). The API accepts 1–3 cases (2 paid calls each) and 1–1024 output tokens per call. SDK automatic retries are disabled, each call has a 30-second timeout, and response caching is bypassed. Failed/timed-out calls may still cost money; their unknown spend is never treated as zero in a net-savings claim. Duplicate requests share the same report for one hour in the running process. This protection does **not** survive restart or span multiple instances; do not retry an uncertain paid request after a restart without checking provider billing.
+
+The original arm receives all reference documents without reduction on the customer's default model. The optimized arm uses the submitted settings and optionally configured routing. No production policies are modified. Both arms' token usage, model/response IDs, rates, response times, and answers appear in the downloadable JSON report. A separate billing receipt is saved in ignored `logs/evaluations.log` without prompts, answers, or expected phrases. The browser download does contain answers and phrase checks. No evaluation entries are mixed into the existing demo/request savings chart.
+
+**Money accounting:** per-request net difference = baseline provider cost − optimized provider cost − supplied optimization overhead. The report separately shows the cost incurred by running both sides of the evaluation. It includes reported cached-input usage at the specified cached rate. Unsupported cache-write/audio billing or missing usage makes a result inconclusive. Costs are calculated from provider-reported tokens and supplied rates, **not reconciled invoices**: credits, taxes, contract tiers, unreported fees, and future workload changes are not inferred. Negative savings remain negative. Local compression makes no paid model call; include its infrastructure and any service fees in the supplied overhead.
+
+**Quality checks:** both answers must contain every required phrase, case-insensitively, and finish normally. These checks do not prove semantic correctness or preservation of quality. The report gives a sample-specific verdict and next step; it never automatically rolls out a policy. Human answer review, representative evaluation data, exact billing reconciliation, monitoring and rollout/fallback controls remain necessary before production deployment.
+
+**Protected context:** mark reference documents `protected: true` to retain their contents verbatim in preview and model requests. Protected documents take priority over the estimated token budget. `context_budget_exceeded` reports this explicitly, rather than dropping protected information.
+
+Send optional `rw_optimization` alongside `messages` to `/v1/chat/completions`. The same payload sent to authenticated `POST /v1/optimize` previews transformed messages and metrics without calling a model or writing request logs:
+
+```json
+{
+  "messages": [{"role": "user", "content": "What is the refund policy?"}],
+  "rw_optimization": {
+    "compression": true,
+    "selection": true,
+    "max_context_tokens": 2000,
+    "context": [
+      {"id": "refunds", "text": "Refunds are available within 30 days.\n\nRefunds are available within 30 days."},
+      {"id": "shipping", "text": "Standard shipping takes five days."}
+    ]
+  }
+}
+```
+
+Both reduction switches default to false. Per-customer `optimization` configuration can set `compression`, `selection`, and `max_context_tokens`; explicit request values override those defaults. References are inserted before the last user message, with their source IDs and an untrusted-data label. This label is not a prompt-injection security boundary.
+
+Selection retains whole documents, ranks word overlap with the question, and drops documents that do not fit. It can drop every document if none fits. Inspect `selected_context_ids` and `dropped_context_ids` in preview metrics before enabling on a workload. Compression preserves conversation messages and skips reference text containing code fences, braces, or brackets. It is conservative deduplication, not learned semantic compression or summarization.
+
+Responses expose before/after estimates and document counts under `rw_meta.optimization`; the dashboard aggregates these per selected period. Token counts use characters divided by four, not a model tokenizer, so budgets are approximate. Savings in dollars still describe caching/routing only; compression savings are not inferred from these estimates. Quality and latency must be evaluated on customer examples before rollout.
+
+The live endpoint currently supports non-streaming text messages only. Streaming, tool calls and response formats are rejected explicitly. Cache capacity is 1,000 entries per process, in memory, with TTL; it does not survive restart or synchronize between instances. These features are a tested implementation baseline, not a claim of full production readiness.
 
 ## Setup
 
@@ -69,6 +149,10 @@ Note: the live feed didn't have entries for `gpt-4o` / `claude-3-5-sonnet-202410
 Rules live in each customer's `routing.rules` list in `customers.yaml`. First matching rule wins; anything unmatched — or any request sent with `x-force-model: flagship` — falls through to that customer's `default` model. See the example config for the rule shape (`max_prompt_tokens`, `keywords`).
 
 ## Savings dashboard (read-only, V2)
+
+Open the dashboard through the running server, not by opening `public/dashboard.html` as a file. File URLs cannot load the server-relative assets or authenticated APIs. If you start with `PORT=8788`, use `http://localhost:8788/dashboard.html`. Restart `npm start` after backend edits, or use `npm run dev` to reload them automatically.
+
+The financial overview shows gateway provider spend only when provider usage can be priced with the configured rates. Unknown charges remain unavailable. Cost saved is an estimate from gateway logs, not invoice-verified savings. Potential savings and the comparison graph come from saved paid evaluations; potential savings counts pairs passing both phrase checks and includes supplied overhead. Evaluation charges are shown separately. No comparison chart is fabricated when evaluation records are absent.
 
 With the server running, open `http://localhost:8787/dashboard.html` and enter a customer's API key. It reads the same `logs/requests.log` the proxy already writes — no new data store — and shows total requests, cache hit rate, % routed to a cheaper model, total estimated savings, a per-day savings chart, and a recent-activity table. There's no login system; the API key itself is the credential, same as the proxy endpoint, and it's only ever sent to this same server (never a third party).
 
