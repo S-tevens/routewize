@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { LOG_FILE } from "./logger.js";
+import { getRequestLogStore } from "./requestLogStore.js";
 
 const receiptsPath = fileURLToPath(new URL("../../logs/evaluations.log", import.meta.url));
 const money = (value) => typeof value === "number" && Number.isFinite(value);
@@ -62,5 +62,10 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
 }
 
 export function financialOverview(customer, days) {
-  return summarizeFinancials(readLines(LOG_FILE), readLines(receiptsPath), customer, days);
+  const now = new Date();
+  const period = days ?? 14;
+  const start = period ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - period + 1) : -Infinity;
+  const tenant = createHash("sha256").update(customer.api_key).digest("hex");
+  const events = getRequestLogStore().requestsForCustomer(customer.name, tenant, start, now.getTime());
+  return summarizeFinancials(events, readLines(receiptsPath), customer, period, now);
 }

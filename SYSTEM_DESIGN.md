@@ -41,14 +41,15 @@ flowchart LR
     Cache -->|"miss"| Providers --> Logger
 
     Logger --> LogFile[("logs/requests.log\nJSONL, append-only")]
-    LogFile --> Stats["stats.js\n(per-day aggregation)"]
+    LogFile --> Index[("SQLite index\nevents + daily rollups + checkpoint")]
+    Index --> Stats["stats.js\n(indexed per-day summaries)"]
     Stats --> Dashboard["Dashboard\n(public/dashboard.html)"]
     Stats --> FinOverview["/api/financial-overview"]
 
     ExternalPricing["tokenscost.com\n(live pricing feed)"] -.->|"startup fetch"| Proxy
 ```
 
-**Everything lives in one Node.js process today.** No database, no separate cache service, no message queue. This is intentional for the pilot stage — see §9 for what has to change before it scales past one customer or one process.
+**Everything lives in one Node.js process today.** A local, rebuildable SQLite log index serves reporting; no separate cache service or message queue. This is intentional for the pilot stage — see §9 for what has to change before it scales past one customer or one process.
 
 ## 3. Request lifecycle
 
@@ -127,7 +128,7 @@ Everything above (rate limit, context optimization, routing, cache namespace con
 | Pricing | `src/logging/pricing.js` | Fetches live per-model $/token from tokenscost.com at startup (3s timeout, falls back to a small static table on failure or `PRICING_SOURCE=static`). Used for both the live `estimated_savings` field and the dry-run report. |
 | Cost evaluation | `src/evaluation/*.js` | A *separate, opt-in* subsystem for proving savings against real paid calls with customer-confirmed rates. Fails closed: missing/unknown pricing is never treated as free. Idempotency-key protected against duplicate paid calls; one evaluation per customer at a time. |
 | Logger | `src/logging/logger.js` | Appends one JSON line per completed request to `logs/requests.log`. Fire-and-forget (`fs.appendFile`, not awaited) — a crash between the response being sent and the write landing would lose that one log line, not the response itself. |
-| Stats aggregator | `src/logging/stats.js` | Reads the whole log file on every call, filters by customer name, aggregates into daily buckets. **O(log size) per dashboard request** — fine at pilot scale, will need indexing or a real datastore once the log file is large. |
+| Request-log index / stats | `src/logging/requestLogStore.js`, `src/logging/stats.js` | Incrementally imports completed JSONL records into SQLite with a transactional checkpoint, customer/day rollups and customer/time indexes. Stats reads daily summaries + 25 recent events; financial overview selects customer/date rows. First backfill/rebuild is synchronous; unchanged history is not rescanned. See README for recovery and append-only constraints. |
 | Dashboard | `public/dashboard.html` + `/api/stats`, `/api/financial-overview` | Static HTML/CSS/vanilla JS, no build step, no framework. Client-side period filtering (7D/14D/30D/All) recomputes from the full daily breakdown already fetched — no re-fetch per filter change. |
 | Dry-run tool | `scripts/dryRun.js` | Replays a JSONL request log through the *same* cache+router logic as the live server, with zero real provider calls. This is the sales-proof mechanism — it must stay behaviorally identical to `server.js`'s cache/router logic, or the numbers it produces stop meaning anything. |
 
@@ -168,13 +169,13 @@ This file is loaded once at startup and is the single source of truth for every 
 }
 ```
 
-This is the only persistent state in the system besides the in-memory cache. Everything the dashboard shows is derived from it.
+The SQLite reporting index is derived from this log and can be rebuilt; it is not a second source of truth. Paid evaluation receipts are stored separately in `logs/evaluations.log`.
 
 ## 6. Multi-tenancy and isolation
 
 - **Cache isolation**: every cache entry lives under a namespace key that includes the customer's own API key — verified by test (`entries are namespaced per customer — no cross-customer leakage`). Additionally namespaced by model/temperature/max_tokens/route within a customer, so different settings can never share a cache entry (see §3).
 - **Config isolation**: each customer's routing rules, provider keys, and pricing config are independent entries in the same YAML file — no shared state between customers at the config level.
-- **Log isolation**: `stats.js` filters the shared log file by `customer` name per request — there's no per-customer log file, so a bug in that filter is the single biggest cross-tenant data-leak risk in the system today. It's covered by tests but hasn't been adversarially reviewed.
+- **Log isolation**: `stats.js` queries the SQLite index by `customer` name per request — there's no per-customer log file, so a bug in that filter is the single biggest cross-tenant data-leak risk in the system today. It's covered by tests but hasn't been adversarially reviewed.
 - **No authentication beyond the API key** — no rate limiting, no per-key scoping of permissions, no revocation flow. Anyone with a valid key has full access to that customer's proxy traffic and dashboard.
 
 ## 7. Failure modes
@@ -213,6 +214,6 @@ In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the
 4. ~~**Rate limiting / per-customer usage caps**~~ Done — `src/middleware/usageGuard.js`: per-customer requests/minute (60s fixed window, server-wide default 120, per-customer override, 0 disables) and an optional daily spend cap (UTC calendar day, cache hits exempt since they cost $0). Both are in-memory/per-process, same current-scope caveat as the cache below — a restart clears them.
 5. ~~**Streaming support.**~~ Done — see "Streaming" below for the design and its one real caveat (limited live test coverage, no real provider key available in this environment).
 6. **Persistent, shared cache (Redis + pgvector/Qdrant).** Deliberately deferred (team decision, 2026-09-12 — no Redis instance yet, not worth building speculative infrastructure). Still worth understanding *why* it matters once it's relevant: the in-memory `Map` in `semanticCache.js` means (a) a restart loses all cached value, and (b) you cannot run more than one server process, because two processes would have two disjoint caches and neither would see the other's hits. This blocks horizontal scaling entirely, not just "would be nice to have" — revisit as soon as there's a reason to run more than one process.
-7. **Log to something queryable**, not a flat growing file — `stats.js`'s full-file-scan-per-request approach degrades linearly with log size and has no index.
+7. **Queryable request log implemented (pending PR review).** SQLite indexes the authoritative JSONL log incrementally; stats uses daily rollups and financial overview uses customer/date indexes. Backfill/rebuild still blocks synchronously, and the separate evaluation-receipt log remains a full scan. Shared cache infrastructure remains deferred.
 
 None of this is needed to serve the current single pilot customer scenario. It becomes necessary in roughly the order listed as soon as there's more than one paying customer or any real production load.
