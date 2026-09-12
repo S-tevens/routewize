@@ -35,6 +35,19 @@ customers:
       provider: openai
       model: gpt-4o
 
+    # Protection against runaway usage from a bug or a leaked key. Both are
+    # optional and independent:
+    # - requests_per_minute: a fixed 60s window per customer. Omit to fall
+    #   back to the server-wide default (120/min); set to 0 to disable for
+    #   this customer specifically.
+    # - max_daily_spend_usd: cumulative estimated spend, UTC calendar day.
+    #   Omit for no cap (we can't guess an acceptable budget without you
+    #   telling us). Cache hits are always free and never count against it;
+    #   only real model calls do. Resets at UTC midnight.
+    rate_limit:
+      requests_per_minute: 120
+      max_daily_spend_usd: 50
+
     cache:
       enabled: true
       similarity_threshold: 0.92

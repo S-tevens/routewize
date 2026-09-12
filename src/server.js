@@ -11,6 +11,7 @@ import { financialOverview } from "./logging/financialOverview.js";
 import { priceResponse, validateRates } from "./evaluation/cost.js";
 
 import { authMiddleware } from "./middleware/auth.js";
+import { UsageGuard } from "./middleware/usageGuard.js";
 import { watchCustomersConfig } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
@@ -30,6 +31,10 @@ const PORT = process.env.PORT || 8787;
 const EMBEDDING_PROVIDER = process.env.EMBEDDING_PROVIDER || "openai";
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-3-small";
 
+// Applies unless a customer sets rate_limit.requests_per_minute explicitly;
+// set it to 0/null in customers.yaml to disable the check for that customer.
+const DEFAULT_REQUESTS_PER_MINUTE = 120;
+
 // A single OpenAI client for embeddings, keyed with whichever customer's key
 // is on the request (embeddings are cheap enough this is a fine v1 shortcut).
 const embeddingClientCache = new Map();
@@ -43,6 +48,7 @@ function embeddingClientFor(apiKey) {
 const cache = new SemanticCache();
 setInterval(() => cache.prune(), 60_000).unref();
 watchCustomersConfig(CONFIG_PATH);
+const usageGuard = new UsageGuard();
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -75,6 +81,15 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: { message: "`messages` is required", type: "invalid_request_error" } });
+  }
+
+  const requestsPerMinute = customer.rate_limit?.requests_per_minute ?? DEFAULT_REQUESTS_PER_MINUTE;
+  const rateResult = usageGuard.checkRateLimit(customer.api_key, requestsPerMinute);
+  if (!rateResult.allowed) {
+    res.set("Retry-After", String(rateResult.retryAfterSeconds));
+    return res.status(429).json({
+      error: { message: `Rate limit exceeded (${requestsPerMinute} requests/min). Retry after ${rateResult.retryAfterSeconds}s.`, type: "rate_limit_error" },
+    });
   }
 
   const forceFlagship =
@@ -148,6 +163,17 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       });
     }
 
+    const maxDailySpendUsd = customer.rate_limit?.max_daily_spend_usd ?? null;
+    const spendCheck = usageGuard.checkSpendCap(customer.api_key, maxDailySpendUsd);
+    if (!spendCheck.allowed) {
+      return res.status(429).json({
+        error: {
+          message: `Daily spend cap of $${maxDailySpendUsd} reached (spent $${spendCheck.spentToday.toFixed(4)} today, UTC). Cache hits still work; real model calls are blocked until the cap resets at UTC midnight.`,
+          type: "spend_cap_exceeded",
+        },
+      });
+    }
+
     const callArgs = { apiKey: providerKey, model: route.model, messages: optimized.messages, temperature, max_tokens };
     const result = route.provider === "anthropic" ? await callAnthropic(callArgs) : await callOpenAI(callArgs);
 
@@ -164,6 +190,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     const actualCost = estimateCost(route.model, result.usage.prompt_tokens, result.usage.completion_tokens);
     const baselineCost = estimateCost(customer.default.model, result.usage.prompt_tokens, result.usage.completion_tokens);
     const estimatedSavings = Math.max(0, baselineCost - actualCost);
+    usageGuard.recordSpend(customer.api_key, actualCost);
 
     let providerSpend = null;
     try {

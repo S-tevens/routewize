@@ -113,6 +113,7 @@ sequenceDiagram
 | Semantic cache | `src/cache/semanticCache.js` | In-memory `Map<namespace, entry[]>`. Cosine similarity search, TTL expiry, bounded to 1,000 total entries (oldest evicted first across all namespaces). |
 | Embeddings | `src/cache/embeddings.js` | Two providers: real OpenAI `text-embedding-3-small`, or a free deterministic "mock" (bag-of-hashed-tokens) for offline testing. **The mock is known to overweight shared template phrasing** — confirmed via diagnostic to produce zero cross-topic false positives, but inflated hit-rate numbers on template-heavy synthetic data. Never treat a mock-embedding dry-run number as a real-world estimate. |
 | Provider adapters | `src/providers/openai.js`, `src/providers/anthropic.js` | OpenAI is a passthrough. Anthropic translates the OpenAI-shaped request to the Messages API and translates the response back, so the customer's app never needs to know which provider actually served a given request. Both have a 60s timeout and 2 SDK-level retries. |
+| Usage guard | `src/middleware/usageGuard.js` | Per-customer requests/minute limit and an optional daily spend cap (UTC day), checked in `server.js` before any provider spend is committed — cache hits are exempt from the spend cap since they cost $0. In-memory, per-process; resets on restart same as the semantic cache. |
 | Pricing | `src/logging/pricing.js` | Fetches live per-model $/token from tokenscost.com at startup (3s timeout, falls back to a small static table on failure or `PRICING_SOURCE=static`). Used for both the live `estimated_savings` field and the dry-run report. |
 | Cost evaluation | `src/evaluation/*.js` | A *separate, opt-in* subsystem for proving savings against real paid calls with customer-confirmed rates. Fails closed: missing/unknown pricing is never treated as free. Idempotency-key protected against duplicate paid calls; one evaluation per customer at a time. |
 | Logger | `src/logging/logger.js` | Appends one JSON line per completed request to `logs/requests.log`. Fire-and-forget (`fs.appendFile`, not awaited) — a crash between the response being sent and the write landing would lose that one log line, not the response itself. |
@@ -171,12 +172,14 @@ This is the only persistent state in the system besides the in-memory cache. Eve
 | Failure | Current behavior |
 |---|---|
 | Invalid/missing API key | 401, no further processing |
+| Customer over their requests/minute limit | 429, `rate_limit_error`, with a `Retry-After` header — checked before any other work (cache lookup, provider call) happens |
+| Customer over their daily spend cap | 429, `spend_cap_exceeded` — checked after a cache miss but before the provider call; cache hits still succeed since they cost $0 |
 | Malformed request body | 400 with a specific message (missing `messages`, invalid `rw_optimization`, etc.) |
 | Customer has no provider key configured for the resolved route | 500, `config_error` |
 | Upstream provider call fails (bad key, rate limit, outage) | 502, `upstream_error`, the raw provider error message is passed through |
 | tokenscost.com pricing fetch fails or times out (3s) | Silently falls back to the static pricing table; logged as a warning, not an error |
 | Embedding call fails | Not currently caught separately — propagates as a 502 from the outer try/catch, same as any other upstream failure |
-| Process restart | In-memory cache is fully lost; log file and config on disk are unaffected |
+| Process restart | In-memory cache, rate-limit windows, and daily spend tracking are all fully lost; log file and config on disk are unaffected |
 | Log write fails (disk full, permissions) | Logged to console, response to the customer is unaffected — **the customer never sees a failure caused by our own logging** |
 
 There is no circuit breaker, no retry budget across requests, and no fallback provider if one is down — each request either succeeds or returns a 502 to the customer's app.
@@ -195,8 +198,8 @@ In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the
 1. ~~**CI running `npm test` on every PR.**~~ Done — `.github/workflows/test.yml`.
 2. ~~**Config hot-reload.**~~ Done — `watchCustomersConfig()` in `loadConfig.js`. Still a single flat YAML file, though; a real config store (database or admin API) is the next step once there are enough customers that hand-editing one file gets unwieldy.
 3. ~~**Secrets out of a plaintext YAML file** (interim).~~ Done via `${ENV_VAR_NAME}` substitution — real secrets now live in the environment, not the file. Explicit team decision (2026-09-12): a real secrets manager (Vault/AWS/GCP) is deferred until there's customer volume to justify it; this is a conscious "later," not a gap nobody noticed.
-4. **Streaming support.** Structurally this is the biggest gap for real adoption — the whole request/response model in `server.js` assumes one request in, one JSON response out. Adding streaming means threading the optimize→route→cache-check→provider-call pipeline through a streamed response instead of a buffered one, and deciding what "cache hit" even means for a stream (replay it as a fake stream? Return it as one chunk?).
-5. **Rate limiting / per-customer usage caps**, enforced at the proxy layer — currently nothing stops runaway usage from a bug or a leaked key.
+4. ~~**Rate limiting / per-customer usage caps**~~ Done — `src/middleware/usageGuard.js`: per-customer requests/minute (60s fixed window, server-wide default 120, per-customer override, 0 disables) and an optional daily spend cap (UTC calendar day, cache hits exempt since they cost $0). Both are in-memory/per-process, same current-scope caveat as the cache below — a restart clears them.
+5. **Streaming support.** Structurally this is the biggest remaining gap for real adoption — the whole request/response model in `server.js` assumes one request in, one JSON response out. Adding streaming means threading the optimize→route→cache-check→provider-call pipeline through a streamed response instead of a buffered one, and deciding what "cache hit" even means for a stream (replay it as a fake stream? Return it as one chunk?).
 6. **Persistent, shared cache (Redis + pgvector/Qdrant).** Deliberately deferred (team decision, 2026-09-12 — no Redis instance yet, not worth building speculative infrastructure). Still worth understanding *why* it matters once it's relevant: the in-memory `Map` in `semanticCache.js` means (a) a restart loses all cached value, and (b) you cannot run more than one server process, because two processes would have two disjoint caches and neither would see the other's hits. This blocks horizontal scaling entirely, not just "would be nice to have" — revisit as soon as there's a reason to run more than one process.
 7. **Log to something queryable**, not a flat growing file — `stats.js`'s full-file-scan-per-request approach degrades linearly with log size and has no index.
 

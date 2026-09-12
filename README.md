@@ -167,6 +167,15 @@ Note: tokenscost.com's model `id` strings don't reliably match the real provider
 
 Rules live in each customer's `routing.rules` list in `customers.yaml`. First matching rule wins; anything unmatched — or any request sent with `x-force-model: flagship` — falls through to that customer's `default` model. See the example config for the rule shape (`max_prompt_tokens`, `keywords`).
 
+## Rate limits and spend caps
+
+Two independent, optional protections per customer (`rate_limit` in `customers.yaml`), against a fast-loop bug and a slow leaked-key drip respectively:
+
+- **`requests_per_minute`** — a fixed 60s window. Defaults to 120/min server-wide if a customer doesn't set one; `0` disables it for that customer. Exceeding it returns `429` with a `Retry-After` header, before any cache lookup or provider call happens.
+- **`max_daily_spend_usd`** — cumulative estimated spend (our own pricing-table estimate, not a customer's real provider bill), UTC calendar day, resets at midnight UTC. Unset by default — we can't guess an acceptable budget without the customer telling us. **Cache hits are always free and never count against it** — only actual model calls do, so a customer over their cap still gets served from cache, just can't trigger new provider spend until it resets.
+
+Both are in-memory, per-process (`src/middleware/usageGuard.js`) — reset on restart, same current-scope caveat as the semantic cache (see SYSTEM_DESIGN.md §9).
+
 ## Savings dashboard (read-only, V2)
 
 Open the dashboard through the running server, not by opening `public/dashboard.html` as a file. File URLs cannot load the server-relative assets or authenticated APIs. If you start with `PORT=8788`, use `http://localhost:8788/dashboard.html`. Restart `npm start` after backend edits, or use `npm run dev` to reload them automatically.
