@@ -20,9 +20,15 @@ customers:
       # as_of: "YYYY-MM-DD"
 
     # The customer's own provider keys — we never eat their inference cost.
+    # Use ${ENV_VAR_NAME} to pull a value from an environment variable at
+    # load time, so the real secret lives in the environment/deploy config,
+    # never in this file. Recommended for anything beyond local testing —
+    # hardcoding a real key directly here works, but means the key sits in
+    # plaintext on disk. A missing env var fails loudly at startup/reload
+    # rather than silently treating the customer as unconfigured.
     provider_keys:
-      openai: "sk-REPLACE_ME"
-      anthropic: "sk-ant-REPLACE_ME"
+      openai: "${DEMO_AGENT_CO_OPENAI_KEY}"
+      anthropic: "${DEMO_AGENT_CO_ANTHROPIC_KEY}"
 
     # Used when no routing rule matches, and when a request forces "flagship".
     default:

@@ -101,6 +101,21 @@ Copy `.env.example` to `.env` and adjust if needed.
 npm start
 ```
 
+### Keeping real keys out of the config file
+
+`provider_keys` values support `${ENV_VAR_NAME}` placeholders, resolved from the environment at load time — put the real secret in `.env` (or your deploy environment), not in `customers.yaml` itself:
+
+```yaml
+provider_keys:
+  openai: "${DEMO_AGENT_CO_OPENAI_KEY}"
+```
+
+A referenced env var that isn't set fails loudly at startup (or reload — see below) rather than silently treating the customer as unconfigured. This is an interim improvement, not a real secrets manager — see `GAMEPLAN.md` for when that becomes worth the investment.
+
+### Editing config without restarting
+
+The server watches `customers.yaml` and hot-reloads it on change — add a customer, tweak a routing rule, or update a key, and it takes effect within a second, no restart needed. If the edited file fails to parse (bad YAML, missing `api_key`, an unresolved env var), the previously loaded config stays in place and the error is logged — a mid-edit typo never takes the whole proxy down.
+
 ## Using it
 
 Same shape as the OpenAI chat completions API, just pointed at this server:

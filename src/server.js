@@ -11,6 +11,7 @@ import { financialOverview } from "./logging/financialOverview.js";
 import { priceResponse, validateRates } from "./evaluation/cost.js";
 
 import { authMiddleware } from "./middleware/auth.js";
+import { watchCustomersConfig } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
 import { selectRoute } from "./router/rules.js";
@@ -41,6 +42,7 @@ function embeddingClientFor(apiKey) {
 
 const cache = new SemanticCache();
 setInterval(() => cache.prune(), 60_000).unref();
+watchCustomersConfig(CONFIG_PATH);
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
