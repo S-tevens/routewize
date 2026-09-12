@@ -16,8 +16,8 @@ import { watchCustomersConfig } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
 import { selectRoute } from "./router/rules.js";
-import { callOpenAI } from "./providers/openai.js";
-import { callAnthropic } from "./providers/anthropic.js";
+import { callOpenAI, streamOpenAI } from "./providers/openai.js";
+import { callAnthropic, streamAnthropic } from "./providers/anthropic.js";
 import { estimateCost, loadRemotePricing } from "./logging/pricing.js";
 import { logRequestEvent } from "./logging/logger.js";
 import { computeStats } from "./logging/stats.js";
@@ -95,9 +95,11 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
   const forceFlagship =
     req.get("x-force-model") === "flagship" || req.body.force_flagship === true;
 
+  const isStream = req.body.stream === true;
+
   let optimized;
   try {
-    if (req.body.stream || req.body.tools || req.body.response_format) throw new Error("Streaming, tools and response_format are not supported by this endpoint yet");
+    if (req.body.tools || req.body.response_format) throw new Error("tools and response_format are not supported by this endpoint yet");
     optimized = optimizeContext(messages, req.body.rw_optimization, customer.optimization);
   } catch (err) {
     return res.status(400).json({ error: { message: err.message, type: "invalid_request_error" } });
@@ -152,6 +154,29 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
           optimization: optimized.metrics,
         });
 
+        if (isStream) {
+          // No real generation happened, so there's nothing to stream
+          // token-by-token — the full cached answer goes out as one chunk.
+          // Still a valid SSE stream: a client accumulating
+          // choices[0].delta.content across chunks gets the same result
+          // whether it arrives in one piece or many.
+          writeSseHeaders(res);
+          writeSseChunk(res, {
+            id: `chatcmpl-${uuidv4()}`,
+            object: "chat.completion.chunk",
+            created: Math.floor(Date.now() / 1000),
+            model: entry.model,
+            choices: [{ index: 0, delta: { role: "assistant", content: entry.response.content }, finish_reason: "stop" }],
+            usage: {
+              prompt_tokens: entry.response.usage.prompt_tokens,
+              completion_tokens: entry.response.usage.completion_tokens,
+              total_tokens: entry.response.usage.prompt_tokens + entry.response.usage.completion_tokens,
+            },
+            rw_meta: { cache_hit: true, matched_rule: null, estimated_savings_usd: Number(savedCost.toFixed(6)), optimization: optimized.metrics },
+          });
+          return endSseStream(res);
+        }
+
         return res.json(buildResponse({ modelUsed: entry.model, content: entry.response.content, usage: entry.response.usage, cacheHit: true, matchedRule: null, estimatedSavings: savedCost, optimization: optimized.metrics }));
       }
     }
@@ -175,6 +200,11 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     }
 
     const callArgs = { apiKey: providerKey, model: route.model, messages: optimized.messages, temperature, max_tokens };
+
+    if (isStream) {
+      return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, embedding, embeddingText, usageGuard, forceFlagship });
+    }
+
     const result = route.provider === "anthropic" ? await callAnthropic(callArgs) : await callOpenAI(callArgs);
 
     if (cacheConfig.enabled && !forceFlagship) {
@@ -226,6 +256,104 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
 });
+
+function writeSseHeaders(res) {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+}
+
+function writeSseChunk(res, chunk) {
+  res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+}
+
+function endSseStream(res) {
+  res.write("data: [DONE]\n\n");
+  return res.end();
+}
+
+// Streams a real provider call chunk-by-chunk. Headers commit to SSE only
+// after the first chunk is successfully received — an immediate failure
+// (bad key, etc., same as the non-streaming path's first `await`) still
+// gets a clean 502 JSON response instead of an SSE payload. Once streaming
+// has visibly started, a later failure can only be reported as an in-stream
+// error event, since the response status/headers are already sent.
+async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, embedding, embeddingText, usageGuard, forceFlagship }) {
+  const resultSink = {};
+  const generator = route.provider === "anthropic" ? streamAnthropic(callArgs, resultSink) : streamOpenAI(callArgs, resultSink);
+  const iterator = generator[Symbol.asyncIterator]();
+
+  let first;
+  try {
+    first = await iterator.next();
+  } catch (err) {
+    console.error(err);
+    return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
+  }
+
+  writeSseHeaders(res);
+  let content = "";
+
+  const processChunk = (chunk) => {
+    const delta = chunk.choices?.[0]?.delta?.content;
+    if (delta) content += delta;
+
+    if (!chunk.usage) {
+      writeSseChunk(res, chunk);
+      return;
+    }
+
+    // Final chunk — usage is known now, so compute cost/savings and attach
+    // rw_meta before forwarding it, same info the non-streaming response
+    // carries, just delivered on the last chunk instead of the only one.
+    const usage = { prompt_tokens: chunk.usage.prompt_tokens, completion_tokens: chunk.usage.completion_tokens };
+    const actualCost = estimateCost(route.model, usage.prompt_tokens, usage.completion_tokens);
+    const baselineCost = estimateCost(customer.default.model, usage.prompt_tokens, usage.completion_tokens);
+    const estimatedSavings = Math.max(0, baselineCost - actualCost);
+    usageGuard.recordSpend(customer.api_key, actualCost);
+
+    if (cacheConfig.enabled && !forceFlagship) {
+      cache.store(cacheNamespace, { embedding, promptText: embeddingText, response: { content, usage }, model: route.model, ttlSeconds: cacheConfig.ttl_seconds ?? 86400 });
+    }
+
+    let providerSpend = null;
+    try {
+      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`]);
+      providerSpend = priceResponse(route.provider, resultSink.raw, rates).cost_usd;
+    } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
+
+    logRequestEvent({
+      customer: customer.name,
+      customer_sha256: createHash("sha256").update(customer.api_key).digest("hex"),
+      financials: { provider_spend_usd: providerSpend, source: "provider_usage_at_configured_rates" },
+      model_requested: modelRequested ?? customer.default.model,
+      model_used: route.model,
+      cache_hit: false,
+      matched_rule: route.matchedRule,
+      estimated_savings: estimatedSavings,
+      optimization: optimized.metrics,
+    });
+
+    chunk.rw_meta = { cache_hit: false, matched_rule: route.matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization: optimized.metrics };
+    writeSseChunk(res, chunk);
+  };
+
+  try {
+    if (!first.done) {
+      processChunk(first.value);
+      let next = await iterator.next();
+      while (!next.done) {
+        processChunk(next.value);
+        next = await iterator.next();
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    writeSseChunk(res, { error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
+  }
+
+  return endSseStream(res);
+}
 
 function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization }) {
   return {

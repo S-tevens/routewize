@@ -14,9 +14,9 @@ This describes the system as it actually exists on `main` today, not an aspirati
 
 **Non-goals (explicitly out of scope for the current system — see the original spec)**
 - Automatic quality detection / model selection by "understanding" the request — routing is 100% rules the customer writes.
-- Agent budget/governance controls (spend caps, loop detection, tool-call limits) — flagged as a possible future direction, not built.
+- Full agent runtime governance (per-task/per-agent budgets, loop detection, tool-call limits) — flagged as a possible future direction, not built. A simpler, real safety net *is* built: a per-customer daily spend cap and requests/minute limit (§4, `usageGuard.js`) — that's a blunt "stop the bleeding" tool, not agent-level governance.
 - Payments/billing automation — handled manually (Stripe Payment Link / invoice) until there's real volume to justify it.
-- Streaming responses, tool calls, `response_format` — the live endpoint explicitly rejects these today.
+- Tool calls, `response_format` — the live endpoint explicitly rejects these today. (Streaming is supported — see §3.)
 
 ## 2. High-level architecture
 
@@ -102,6 +102,16 @@ sequenceDiagram
 
 **Why the cache is namespaced the way it is:** a cache hit must never reuse an answer generated under different instructions, model, temperature, or resolved route. The namespace key folds all of that in; real embedding similarity search still runs *within* one namespace, so near-duplicate wording still hits — this combination was the fix applied when integrating jeev-69's branch, which had replaced real similarity matching with an exact-request hash (losing near-duplicate detection entirely). See the PR (#1) description for the full before/after.
 
+### Streaming (`stream: true`)
+
+Everything above (rate limit, context optimization, routing, cache namespace construction) runs identically regardless of `stream`; only what happens once a cache miss commits to an actual provider call differs.
+
+- **Cache hit + streaming**: the full cached answer is sent as a single SSE chunk with `finish_reason: "stop"` and `rw_meta` attached, then `[DONE]`. Not a fake token-by-token replay — a client accumulating `choices[0].delta.content` gets an identical result either way, just delivered faster on a hit.
+- **Cache miss + streaming**: `handleStreamingCall()` in `server.js` uses a two-phase commit. It pulls the *first* item from the provider's async generator before sending any HTTP headers — if that throws (bad key, etc.), the client gets a normal `502` JSON error, same as the non-streaming path. Only once a chunk is successfully in hand does it commit to SSE headers and start forwarding. A failure *after* that point can only be reported as an in-stream error event (`data: {"error": {...}}`) followed by `[DONE]` — the response status is already sent by then, so that's a real, unavoidable limitation of HTTP once you've started streaming a 200.
+- **Anthropic translation**: OpenAI's own streamed chunks are already in the target `chat.completion.chunk` shape, so `streamOpenAI()` is a direct passthrough. Anthropic's native stream (`message_start` → `content_block_delta`* → `message_delta` → `message_stop`, plus `ping`) is translated event-by-event by `translateAnthropicStreamEvent()` in `src/providers/anthropic.js` — a pure function (event + mutable state in, one chunk or `null` out) kept side-effect-free specifically so it's unit-testable without a live connection. Usage/cost bookkeeping (cache store, `usageGuard.recordSpend`, `logRequestEvent`, evaluation pricing) happens once the final chunk (the one carrying `usage`) is reached — identical to what the non-streaming path does with `result.usage`, just triggered by a different chunk instead of a single awaited response.
+
+**Known test-coverage limit, stated plainly:** the Anthropic event-translation logic and the two-phase-commit error handling are unit- and live-tested (confirmed live: an immediate auth failure returns a clean `502` for both providers, not a botched SSE stream). What is *not* live-tested is a real, successful multi-chunk stream end-to-end — this environment has no real OpenAI/Anthropic API key. Treat the successful-stream path as verified by code review and the pure-function tests, not by a live run, until someone runs it against a real key.
+
 ## 4. Component reference
 
 | Component | File(s) | Responsibility |
@@ -112,7 +122,7 @@ sequenceDiagram
 | Router | `src/router/rules.js` | Pure function: `(customer, promptText, forceFlagship) -> route`. Stateless, no I/O — fully unit-testable, which is why it has the most thorough test coverage. |
 | Semantic cache | `src/cache/semanticCache.js` | In-memory `Map<namespace, entry[]>`. Cosine similarity search, TTL expiry, bounded to 1,000 total entries (oldest evicted first across all namespaces). |
 | Embeddings | `src/cache/embeddings.js` | Two providers: real OpenAI `text-embedding-3-small`, or a free deterministic "mock" (bag-of-hashed-tokens) for offline testing. **The mock is known to overweight shared template phrasing** — confirmed via diagnostic to produce zero cross-topic false positives, but inflated hit-rate numbers on template-heavy synthetic data. Never treat a mock-embedding dry-run number as a real-world estimate. |
-| Provider adapters | `src/providers/openai.js`, `src/providers/anthropic.js` | OpenAI is a passthrough. Anthropic translates the OpenAI-shaped request to the Messages API and translates the response back, so the customer's app never needs to know which provider actually served a given request. Both have a 60s timeout and 2 SDK-level retries. |
+| Provider adapters | `src/providers/openai.js`, `src/providers/anthropic.js` | OpenAI is a passthrough. Anthropic translates the OpenAI-shaped request to the Messages API and translates the response back, so the customer's app never needs to know which provider actually served a given request. Both have a 60s timeout and 2 SDK-level retries. Each also exports a streaming variant (`streamOpenAI`/`streamAnthropic`) yielding OpenAI-shaped `chat.completion.chunk` objects — Anthropic's native event stream is translated chunk-by-chunk via the pure, unit-tested `translateAnthropicStreamEvent()`. |
 | Usage guard | `src/middleware/usageGuard.js` | Per-customer requests/minute limit and an optional daily spend cap (UTC day), checked in `server.js` before any provider spend is committed — cache hits are exempt from the spend cap since they cost $0. In-memory, per-process; resets on restart same as the semantic cache. |
 | Pricing | `src/logging/pricing.js` | Fetches live per-model $/token from tokenscost.com at startup (3s timeout, falls back to a small static table on failure or `PRICING_SOURCE=static`). Used for both the live `estimated_savings` field and the dry-run report. |
 | Cost evaluation | `src/evaluation/*.js` | A *separate, opt-in* subsystem for proving savings against real paid calls with customer-confirmed rates. Fails closed: missing/unknown pricing is never treated as free. Idempotency-key protected against duplicate paid calls; one evaluation per customer at a time. |
@@ -177,6 +187,8 @@ This is the only persistent state in the system besides the in-memory cache. Eve
 | Malformed request body | 400 with a specific message (missing `messages`, invalid `rw_optimization`, etc.) |
 | Customer has no provider key configured for the resolved route | 500, `config_error` |
 | Upstream provider call fails (bad key, rate limit, outage) | 502, `upstream_error`, the raw provider error message is passed through |
+| Streaming request: provider call fails before the first chunk | 502, `upstream_error`, JSON — identical to the non-streaming failure case, since no SSE headers are sent yet |
+| Streaming request: provider call fails mid-stream (after the first chunk) | Cannot become a clean error status — the `200`/SSE headers are already committed. Reported as an in-stream `data: {"error": {...}}` event, then `[DONE]` |
 | tokenscost.com pricing fetch fails or times out (3s) | Silently falls back to the static pricing table; logged as a warning, not an error |
 | Embedding call fails | Not currently caught separately — propagates as a 502 from the outer try/catch, same as any other upstream failure |
 | Process restart | In-memory cache, rate-limit windows, and daily spend tracking are all fully lost; log file and config on disk are unaffected |
@@ -199,7 +211,7 @@ In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the
 2. ~~**Config hot-reload.**~~ Done — `watchCustomersConfig()` in `loadConfig.js`. Still a single flat YAML file, though; a real config store (database or admin API) is the next step once there are enough customers that hand-editing one file gets unwieldy.
 3. ~~**Secrets out of a plaintext YAML file** (interim).~~ Done via `${ENV_VAR_NAME}` substitution — real secrets now live in the environment, not the file. Explicit team decision (2026-09-12): a real secrets manager (Vault/AWS/GCP) is deferred until there's customer volume to justify it; this is a conscious "later," not a gap nobody noticed.
 4. ~~**Rate limiting / per-customer usage caps**~~ Done — `src/middleware/usageGuard.js`: per-customer requests/minute (60s fixed window, server-wide default 120, per-customer override, 0 disables) and an optional daily spend cap (UTC calendar day, cache hits exempt since they cost $0). Both are in-memory/per-process, same current-scope caveat as the cache below — a restart clears them.
-5. **Streaming support.** Structurally this is the biggest remaining gap for real adoption — the whole request/response model in `server.js` assumes one request in, one JSON response out. Adding streaming means threading the optimize→route→cache-check→provider-call pipeline through a streamed response instead of a buffered one, and deciding what "cache hit" even means for a stream (replay it as a fake stream? Return it as one chunk?).
+5. ~~**Streaming support.**~~ Done — see "Streaming" below for the design and its one real caveat (limited live test coverage, no real provider key available in this environment).
 6. **Persistent, shared cache (Redis + pgvector/Qdrant).** Deliberately deferred (team decision, 2026-09-12 — no Redis instance yet, not worth building speculative infrastructure). Still worth understanding *why* it matters once it's relevant: the in-memory `Map` in `semanticCache.js` means (a) a restart loses all cached value, and (b) you cannot run more than one server process, because two processes would have two disjoint caches and neither would see the other's hits. This blocks horizontal scaling entirely, not just "would be nice to have" — revisit as soon as there's a reason to run more than one process.
 7. **Log to something queryable**, not a flat growing file — `stats.js`'s full-file-scan-per-request approach degrades linearly with log size and has no index.
 

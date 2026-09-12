@@ -135,6 +135,21 @@ Force a request to skip caching/routing and always hit the flagship default:
 curl ... -H "x-force-model: flagship" ...
 ```
 
+### Streaming
+
+Set `"stream": true` for a standard OpenAI-compatible SSE stream — Anthropic-routed requests are translated to the same `chat.completion.chunk` format, so a client never needs to know which provider actually served it, same as the non-streaming path.
+
+```bash
+curl http://localhost:8787/v1/chat/completions \
+  -H "Authorization: Bearer rw_live_demo_4a21" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "Classify: I love this product!"}], "stream": true}'
+```
+
+A cache hit sends the full cached answer as a single chunk immediately, rather than faking a token-by-token typing effect — a client accumulating `choices[0].delta.content` across chunks gets the same result either way, just faster. `rw_meta` (cache hit, matched rule, estimated savings) rides on the *last* chunk instead of the response body, since usage/cost is only known once the stream finishes.
+
+One tradeoff worth knowing: once the first chunk is sent, the HTTP response is already committed to `200` with `Content-Type: text/event-stream` — a failure after that point can only be reported as an in-stream error event, not a clean error status code. A failure *before* the first chunk (e.g. an invalid provider key) still returns a normal `502` JSON error, same as the non-streaming path. `tools` and `response_format` remain unsupported either way.
+
 ## Dry run (prove savings before going live)
 
 Run a customer's historical request log through the router+cache logic with **no real API calls** and get one number: how much this would have saved.
