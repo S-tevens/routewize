@@ -1,10 +1,26 @@
 // Static fallback — USD price per 1K tokens — used when the live pricing
 // feed can't be reached, or doesn't (yet) list a given model. Deliberately
 // small: it only needs to cover our own example config's default models.
+//
+// NOTE (2026-09-12): tokenscost.com's model `id` strings don't match the
+// real Anthropic/OpenAI API model strings exactly (e.g. it lists
+// "claude-sonnet-4.6", the real API id is "claude-sonnet-4-6") — so the
+// live feed will rarely match current Anthropic models by exact id, and
+// these fallback entries carry more real weight than the name suggests.
+// Verified against provider docs on 2026-09-12:
+// - claude-3-5-sonnet-20241022 and claude-3-5-haiku-20241022 are RETIRED
+//   (Anthropic: requests to retired models fail outright) — kept here only
+//   so old logs/sample-data referencing them still price consistently.
+//   customers.example.yaml has been updated to use the active replacements.
+// - gpt-4o / gpt-4o-mini are still active (not retired), just no longer
+//   OpenAI's recommended/flagship tier.
 const FALLBACK_PRICING = {
   "gpt-4o": { in: 0.0025, out: 0.01 },
   "gpt-4o-mini": { in: 0.00015, out: 0.0006 },
   "gpt-4-turbo": { in: 0.01, out: 0.03 },
+  "claude-sonnet-4-6": { in: 0.003, out: 0.015 },
+  "claude-haiku-4-5-20251001": { in: 0.001, out: 0.005 },
+  // Retired models — kept only for consistent historical cost estimates.
   "claude-3-5-sonnet-20241022": { in: 0.003, out: 0.015 },
   "claude-3-5-haiku-20241022": { in: 0.0008, out: 0.004 },
   "claude-3-opus-20240229": { in: 0.015, out: 0.075 },

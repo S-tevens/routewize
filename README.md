@@ -142,7 +142,11 @@ By default the dry run uses a deterministic local "mock" embedding (no embedding
 
 Cost estimates (used in logging and the dry-run report) pull live per-model pricing from [tokenscost.com](https://tokenscost.com/data) at startup — 400+ models, updated daily, CC-BY-4.0. If that fetch fails (offline, timeout) it falls back to a small built-in table covering the example config's default models, so nothing breaks either way. Set `PRICING_SOURCE=static` to skip the network call entirely and always use the built-in table.
 
-Note: the live feed didn't have entries for `gpt-4o` / `claude-3-5-sonnet-20241022` / etc. (the models in `customers.example.yaml`) as of this writing — worth checking whether those model names are still current before going live with a real customer.
+Note: tokenscost.com's model `id` strings don't reliably match the real provider API model strings (e.g. it lists `claude-sonnet-4.6`, the real Anthropic API id is `claude-sonnet-4-6`), so the live feed rarely matches current Anthropic models by exact id — cost estimates for those lean on the static fallback table more than the feed. It's kept anyway since it does match many OpenAI ids and covers hundreds of other models the fallback table doesn't.
+
+**Model status, verified 2026-09-12 against provider docs** (this needs periodic re-checking, providers retire models on their own schedule):
+- `claude-3-5-sonnet-20241022` and `claude-3-5-haiku-20241022` (previously used in `customers.example.yaml`) are **retired** — Anthropic: "Requests to retired models will fail." Config now uses the active replacements, `claude-sonnet-4-6` and `claude-haiku-4-5-20251001`.
+- `gpt-4o` / `gpt-4o-mini` are still **active**, just no longer OpenAI's recommended/flagship tier (that's now the GPT-6/5.6 series) — left as-is since they still work, but worth revisiting if OpenAI schedules them for retirement.
 
 ## How routing works
 

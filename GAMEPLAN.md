@@ -37,7 +37,7 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 | Status | Task | Notes |
 |---|---|---|
 | ✅ Done | CI pipeline (`npm test` on every PR) | `.github/workflows/test.yml` |
-| ⬜ todo | Verify model IDs are still live | `gpt-4o`, `claude-3-5-sonnet-20241022`, etc. aren't in the tokenscost.com feed — check they're still callable before any real customer traffic |
+| ✅ Done | Verify model IDs are still live | Confirmed against provider docs 2026-09-12: `claude-3-5-sonnet-20241022` and `claude-3-5-haiku-20241022` are **retired** (would fail live). Updated `customers.example.yaml`/`customers.yaml` to `claude-sonnet-4-6` / `claude-haiku-4-5-20251001`. `gpt-4o`/`gpt-4o-mini` confirmed still active. See README's "Pricing data" section. Re-check periodically — providers retire models on their own schedule. |
 | ⬜ todo | Streaming support | Biggest gap for real adoption — most chat apps stream. Needs the optimize→route→cache→provider pipeline rethought for a streamed response, and a decision on what "cache hit" means for a stream |
 | ⬜ todo | Persistent, shared cache (Redis + pgvector/Qdrant) | Hard architectural blocker to running more than one server process — see SYSTEM_DESIGN.md §9 |
 | ⬜ todo | Config out of flat YAML (hot reload or admin API) | Every config change currently needs a process restart |
