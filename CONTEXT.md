@@ -77,6 +77,6 @@ Target for a believable pitch, per the original spec: **>20% savings**.
 
 ## Open/optional items not yet started
 
-- Pitch one-pager rebrand to "routewise" is implemented (pending PR review); real case-study data remains pending.
+- Pitch one-pager rebrand to "routewise" is implemented; real case-study data remains pending.
 - Gemini support (spec lists it as an optional "+maybe" — not built, no immediate need).
 - Verify/replace the possibly-stale model names in `customers.example.yaml`.

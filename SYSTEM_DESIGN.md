@@ -1,6 +1,6 @@
 # routewise — System Design
 
-Last updated: 2026-09-12
+Last updated: 2026-09-13
 
 This describes the system as it actually exists on `main` today, not an aspirational future version. Where something is a known gap, it's called out explicitly rather than glossed over — see [CONTEXT.md](CONTEXT.md) for the prioritized list of what to build next.
 
@@ -118,7 +118,7 @@ Everything above (rate limit, context optimization, routing, cache namespace con
 | Component | File(s) | Responsibility |
 |---|---|---|
 | Auth | `src/middleware/auth.js` | Resolves `Authorization: Bearer <key>` to a customer config entry. No sessions, no OAuth — the API key *is* the credential everywhere (proxy, dashboard, stats API). |
-| Config loader | `src/config/loadConfig.js` | Reads `src/config/customers.yaml`, caches in memory, and hot-reloads on file change via `fs.watch` (debounced ~150ms) — no process restart needed. If an edit fails to parse, the previous good config stays cached and the error is logged; a bad edit never takes the whole proxy down. `provider_keys` values support `${ENV_VAR_NAME}` substitution resolved at load/reload time, so real secrets live in the environment, not the file — an interim measure ahead of a real secrets manager (see §9). Still a single flat YAML file, though — fine for a handful of customers, not yet a real config store. |
+| Config loader | `src/config/loadConfig.js` | Reads `src/config/customers.yaml`, caches in memory, and hot-reloads on file change via `fs.watch` (debounced ~150ms) — no process restart needed. If an edit fails to parse, the previous good config stays cached and the error is logged; a bad edit never takes the whole proxy down. Parsed YAML string values (including `provider_keys`) support `${ENV_VAR_NAME}` substitution at load/reload time; comments are ignored, mapping keys remain literal, and environment contents cannot alter YAML syntax, so real secrets live in the environment, not the file — an interim measure ahead of a real secrets manager (see §9). Still a single flat YAML file, though — fine for a handful of customers, not yet a real config store. |
 | Context optimizer | `src/optimization/context.js` | Deduplicates paragraphs in reference documents (compression) and/or ranks+drops documents by lexical overlap with the question (selection), within a token budget. Protected documents are never dropped or altered. |
 | Router | `src/router/rules.js` | Pure function: `(customer, promptText, forceFlagship) -> route`. Stateless, no I/O — fully unit-testable, which is why it has the most thorough test coverage. |
 | Semantic cache | `src/cache/semanticCache.js` | In-memory `Map<namespace, entry[]>`. Cosine similarity search, TTL expiry, bounded to 1,000 total entries (oldest evicted first across all namespaces). |
@@ -214,6 +214,6 @@ In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the
 4. ~~**Rate limiting / per-customer usage caps**~~ Done — `src/middleware/usageGuard.js`: per-customer requests/minute (60s fixed window, server-wide default 120, per-customer override, 0 disables) and an optional daily spend cap (UTC calendar day, cache hits exempt since they cost $0). Both are in-memory/per-process, same current-scope caveat as the cache below — a restart clears them.
 5. ~~**Streaming support.**~~ Done — see "Streaming" below for the design and its one real caveat (limited live test coverage, no real provider key available in this environment).
 6. **Persistent, shared cache (Redis + pgvector/Qdrant).** Deliberately deferred (team decision, 2026-09-12 — no Redis instance yet, not worth building speculative infrastructure). Still worth understanding *why* it matters once it's relevant: the in-memory `Map` in `semanticCache.js` means (a) a restart loses all cached value, and (b) you cannot run more than one server process, because two processes would have two disjoint caches and neither would see the other's hits. This blocks horizontal scaling entirely, not just "would be nice to have" — revisit as soon as there's a reason to run more than one process.
-7. **Queryable request log implemented (pending PR review).** SQLite indexes the authoritative JSONL log incrementally; stats uses daily rollups and financial overview uses customer/date indexes. Backfill/rebuild still blocks synchronously, and the separate evaluation-receipt log remains a full scan. Shared cache infrastructure remains deferred.
+7. **Queryable request log merged (PR #2).** SQLite indexes the authoritative JSONL log incrementally; stats uses daily rollups and financial overview uses customer/date indexes. Backfill/rebuild still blocks synchronously, and the separate evaluation-receipt log remains a full scan. Shared cache infrastructure remains deferred.
 
 None of this is needed to serve the current single pilot customer scenario. It becomes necessary in roughly the order listed as soon as there's more than one paying customer or any real production load.
