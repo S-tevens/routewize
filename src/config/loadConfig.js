@@ -5,23 +5,30 @@ import yaml from "js-yaml";
 let cachedConfig = null;
 let cachedPath = null;
 
-// Supports ${ENV_VAR} placeholders anywhere in the YAML text (typically
-// provider_keys), so real secrets live in environment variables, never in
-// the file itself. Substitution happens on the raw text before parsing, so
-// it works regardless of where in the structure a placeholder appears.
-// Missing env vars fail loudly (listed together) rather than silently
-// substituting an empty string, which would otherwise look like a
-// plausible-but-wrong key and fail confusingly later.
-function substituteEnvVars(raw) {
+// Resolve placeholders in parsed string values, so YAML comments are ignored
+// and secret values cannot change YAML syntax or scalar types. Mapping keys
+// remain literal. Missing variables still fail together before config caching.
+function substituteEnvVars(config) {
   const missing = new Set();
-  const result = raw.replace(/\$\{([A-Z0-9_]+)\}/g, (match, varName) => {
-    const value = process.env[varName];
-    if (value === undefined) {
-      missing.add(varName);
-      return match;
+  const seen = new WeakSet();
+  function resolve(value) {
+    if (typeof value === "string") {
+      return value.replace(/\$\{([A-Z0-9_]+)\}/g, (match, varName) => {
+        const replacement = process.env[varName];
+        if (replacement === undefined) {
+          missing.add(varName);
+          return match;
+        }
+        return replacement;
+      });
+    }
+    if (value && typeof value === "object" && !seen.has(value)) {
+      seen.add(value);
+      for (const key of Object.keys(value)) value[key] = resolve(value[key]);
     }
     return value;
-  });
+  }
+  const result = resolve(config);
   if (missing.size > 0) {
     throw new Error(`Customer config references undefined environment variable(s): ${[...missing].join(", ")}`);
   }
@@ -36,8 +43,7 @@ function parseConfigFile(configPath) {
   }
 
   const raw = fs.readFileSync(configPath, "utf8");
-  const substituted = substituteEnvVars(raw);
-  const parsed = yaml.load(substituted);
+  const parsed = substituteEnvVars(yaml.load(raw));
   const customers = parsed?.customers ?? [];
 
   const byApiKey = new Map();
