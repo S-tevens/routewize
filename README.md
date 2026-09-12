@@ -197,7 +197,7 @@ Open the dashboard through the running server, not by opening `public/dashboard.
 
 The financial overview shows gateway provider spend only when provider usage can be priced with the configured rates. Unknown charges remain unavailable. Cost saved is an estimate from gateway logs, not invoice-verified savings. Potential savings and the comparison graph come from saved paid evaluations; potential savings counts pairs passing both phrase checks and includes supplied overhead. Evaluation charges are shown separately. No comparison chart is fabricated when evaluation records are absent.
 
-With the server running, open `http://localhost:8787/dashboard.html` and enter a customer's API key. It reads the same `logs/requests.log` the proxy already writes — no new data store — and shows total requests, cache hit rate, % routed to a cheaper model, total estimated savings, a per-day savings chart, and a recent-activity table. There's no login system; the API key itself is the credential, same as the proxy endpoint, and it's only ever sent to this same server (never a third party).
+With the server running, open `http://localhost:8787/dashboard.html` and enter a customer's API key. It reads an automatically maintained SQLite index of the same `logs/requests.log` the proxy already writes, and shows total requests, cache hit rate, % routed to a cheaper model, total estimated savings, a per-day savings chart, and a recent-activity table. There's no login system; the API key itself is the credential, same as the proxy endpoint, and it's only ever sent to this same server (never a third party).
 
 To see it with data before any real traffic exists, seed the log from a sample dataset:
 
@@ -218,3 +218,16 @@ Deliberately not built here (still deferred until a real customer asks, per the 
 - Cache store is in-process memory, not Redis/pgvector — fine for a single-process pilot; swap `src/cache/semanticCache.js` for a real vector store before it needs to survive restarts or run across multiple instances.
 
 See `finops-mvp-spec.md`-style scope notes above — this mirrors the "2 subsystems, not 6" MVP plan.
+
+
+### Request-log index
+
+`logs/requests.log` remains the authoritative, append-only JSONL log. On the first stats or financial-overview read, `src/logging/requestLogStore.js` backfills `logs/requests.log.sqlite`. Subsequent reads import only newly appended bytes; a persisted checkpoint prevents reimport after a restart. SQLite transactions commit events, daily rollups and the checkpoint together.
+
+Stats reads customer/day rollups and the latest 25 records through indexes: work scales with that customer's number of days plus new log bytes, rather than historical request count. Financial overview queries only the customer's requested date range (hash identity first, name fallback for legacy records), then keeps the existing financial calculations. Its separate `evaluations.log` receipt scan is unchanged.
+
+Behavior details: only newline-terminated records are indexed, so a partly written final line becomes visible once completed. Malformed JSON and records without a string timestamp are skipped; nonnumeric/nonfinite stats metrics contribute zero. Record order for recent activity remains append order. Replacing, removing or truncating the log resets the index, including demo reseeding. The file is append-only: arbitrary edits to earlier bytes while also growing the file are unsupported (a 128-byte checkpoint-tail check catches common truncate-and-regrow cases, not all historical edits).
+
+The first backfill and any rebuild run synchronously and may delay that read on large logs; normal unchanged reads parse no historical events. The index adds disk usage and requires a writable log directory. SQLite failures fail the reporting request rather than silently returning stale totals; proxy logging still appends JSONL independently. To rebuild a damaged index, stop every process using it, remove only `logs/requests.log.sqlite` and its `-wal`/`-shm` sidecars, and restart. Keep `requests.log`. The next reporting request rebuilds the index. Database files are gitignored.
+
+SQLite uses `better-sqlite3` 12.x to retain Node 20 compatibility (CI uses Node 24). `npm install` normally downloads a native prebuild; platforms without one need the package's native build prerequisites. This index does not change the deferred shared-cache work.
