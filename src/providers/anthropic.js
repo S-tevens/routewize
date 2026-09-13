@@ -103,8 +103,8 @@ export function translateAnthropicStreamEvent(event, state) {
 // stream. The caller accumulates `choices[0].delta.content` across chunks
 // to get the full text, same pattern as reading `.content` off the
 // non-streaming result above. `resultSink.raw` carries the *native* Anthropic
-// usage shape (separate cache_read/cache_creation fields) once the stream
-// ends, since that's what priceResponse() needs for cost evaluation —
+// usage shape (separate cache_read/cache_creation fields) before yielding
+// the final usage chunk, so priceResponse() can evaluate its cost —
 // deliberately not the normalized client-facing usage on the final chunk.
 export async function* streamAnthropic({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2 }, resultSink = {}) {
   const client = new Anthropic({ apiKey, timeout, maxRetries });
@@ -126,15 +126,18 @@ export async function* streamAnthropic({ apiKey, model, messages, temperature, m
   const state = {};
   for await (const event of stream) {
     const chunk = translateAnthropicStreamEvent(event, state);
+    if (chunk?.usage) {
+      // The proxy prices/logs this chunk before requesting the next one.
+      // Publish native usage first so configured rates can price the stream.
+      resultSink.raw = {
+        usage: {
+          input_tokens: state.inputTokens ?? 0,
+          output_tokens: state.outputTokens ?? 0,
+          cache_read_input_tokens: state.cacheReadInputTokens ?? 0,
+          cache_creation_input_tokens: state.cacheCreationInputTokens ?? 0,
+        },
+      };
+    }
     if (chunk) yield chunk;
   }
-
-  resultSink.raw = {
-    usage: {
-      input_tokens: state.inputTokens ?? 0,
-      output_tokens: state.outputTokens ?? 0,
-      cache_read_input_tokens: state.cacheReadInputTokens ?? 0,
-      cache_creation_input_tokens: state.cacheCreationInputTokens ?? 0,
-    },
-  };
 }

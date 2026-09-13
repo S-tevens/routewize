@@ -234,3 +234,10 @@ SQLite uses `better-sqlite3` 12.x to retain Node 20 compatibility (CI uses Node 
 
 
 Environment placeholders are resolved in parsed YAML **string values**, including nested lists and block strings. Comments are ignored, and mapping keys remain literal. Environment values are inserted verbatim, so quotes, hashes and newlines cannot alter the YAML structure; a value such as `false` stays a string. Missing variables in actual values still fail with a list of variable names. This applies both at startup and on hot reload. Set the two `DEMO_AGENT_CO_*_KEY` variables used by the example config; the `ENV_VAR_NAME` shown in its comment is documentation only.
+
+
+### Offline streaming verification
+
+`npm test` includes `test/streamingIntegration.test.js`. It starts local synthetic OpenAI/Anthropic HTTP endpoints and an isolated copy of the real proxy, using the installed SDK adapters, fake keys, mock embeddings and static pricing. It checks that chunks arrive before upstream completion, final usage and `rw_meta`, configured-rate spend (including Anthropic cached input), cache reuse by streaming/non-streaming requests, clean JSON 502s before streaming, and SSE errors after partial output. Failed partial answers must not enter the cache. Temporary configs, logs, processes and listeners are cleaned up.
+
+These tests require local loopback sockets but no internet, provider credentials or paid calls. They do not certify current provider behavior; the live streaming smoke test remains pending real keys.
