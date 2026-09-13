@@ -65,7 +65,12 @@ async function fixture(t, provider, mode) {
   // Run unchanged application source in an isolated directory: neither real
   // customer config nor project request logs are touched by these tests.
   fs.cpSync(path.join(root, "src"), path.join(dir, "src"), { recursive: true, filter: source => !source.endsWith("customers.yaml") });
-  fs.symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"), "dir");
+  // "junction" (not "dir") because Windows requires admin/Developer Mode to
+  // create a directory *symlink* without elevation, but not a junction — the
+  // target must be absolute for a junction, which `root` already is. Node
+  // ignores the type argument entirely on non-Windows platforms, so this is
+  // a no-op behavior change there.
+  fs.symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"), "junction");
   fs.writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
   fs.writeFileSync(path.join(dir, "customers.json"), JSON.stringify({ customers: [{
     api_key: "offline-test", name: "Offline Tenant", provider_keys: { openai: "fake-openai", anthropic: "fake-anthropic" },
