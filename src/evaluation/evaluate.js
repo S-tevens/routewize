@@ -25,7 +25,7 @@ export function prepareEvaluation(customer, body) {
       if (!["openai", "anthropic"].includes(arm.route?.provider) || !arm.route.model) throw new Error("Only configured OpenAI and Anthropic models are supported");
       const apiKey = customer.provider_keys?.[arm.route.provider];
       if (!apiKey || /REPLACE_ME/.test(apiKey)) throw new Error(`Configure a real ${arm.route.provider} key before running evaluation`);
-      const rates = validateRates(customer.evaluation.pricing?.[`${arm.route.provider}/${arm.route.model}`]);
+      const rates = validateRates(customer.evaluation.pricing?.[`${arm.route.provider}/${arm.route.model}`], arm.route.provider);
       return { ...arm, rates, apiKey };
     });
     return { id: `case-${index + 1}`, expected: item.expected_contains.map((s) => s.trim()), arms, metrics: optimized.metrics };

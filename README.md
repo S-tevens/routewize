@@ -26,9 +26,20 @@ evaluation:
       cached_input: null
       source: "Your provider contract or pricing page"
       as_of: "2026-09-10"
+    anthropic/claude-sonnet-4-6:
+      input: null
+      output: null
+      cached_input: null
+      cache_write_input: null # Anthropic-only: premium rate for writing a new prompt-cache entry
+      source: "Your provider contract or pricing page"
+      as_of: "2026-09-10"
 ```
 
 Add a pricing entry for every model selected by routing if enabling routing in the comparison. Null, missing and generic fallback prices are rejected before any calls. Restart the server after changing customer configuration.
+
+### Prompt caching (Anthropic)
+
+The proxy marks the system prompt as a cache breakpoint on every Anthropic request (`cache_control: {type: "ephemeral"}` — see `src/providers/anthropic.js`). Anthropic bills the first call that writes a cache entry at a premium (`cache_write_input`), and every call within the cache's TTL that reuses the same system text at a discount (`cached_input`) instead of full price. This pays off automatically for the common case — a customer's system prompt rarely changes between requests — and is a no-op (no cache, no price penalty) for system prompts under Anthropic's per-model minimum cacheable length. OpenAI's prompt caching is automatic on their side for prompts over ~1024 tokens; no request changes are needed, `priceResponse()` already reads `prompt_tokens_details.cached_tokens` from OpenAI's usage response.
 
 Authenticated `GET /v1/evaluations/config` checks readiness. `POST /v1/evaluations` accepts:
 
