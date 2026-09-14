@@ -76,7 +76,7 @@ async function fixture(t, provider, mode) {
     api_key: "offline-test", name: "Offline Tenant", provider_keys: { openai: "fake-openai", anthropic: "fake-anthropic" },
     default: { provider, model }, cache: { enabled: true, similarity_threshold: 0.99 },
     rate_limit: { requests_per_minute: 0 },
-    evaluation: { pricing: { [`${provider}/${model}`]: { input: 1, output: 2, cached_input: 0.5, source: "fixture", as_of: "2026-09-13" } } },
+    evaluation: { pricing: { [`${provider}/${model}`]: { input: 1, output: 2, cached_input: 0.5, cache_write_input: 1.25, source: "fixture", as_of: "2026-09-13" } } },
   }] }));
   // Test-only listener instrumentation reports the OS-assigned port via IPC.
   // Production server exports, routes and request handling remain unchanged.
@@ -104,7 +104,7 @@ async function fixture(t, provider, mode) {
   });
   return { release, requests, model, dir, call: (stream = true) => fetch(`http://127.0.0.1:${address.port}/v1/chat/completions`, {
     method: "POST", headers: { Authorization: "Bearer offline-test", "Content-Type": "application/json" },
-    body: JSON.stringify({ stream, messages: [{ role: "user", content: "Say hello world" }], max_tokens: 32 }), signal: AbortSignal.timeout(10000),
+    body: JSON.stringify({ stream, messages: [{ role: "system", content: "You are a concise assistant." }, { role: "user", content: "Say hello world" }], max_tokens: 32 }), signal: AbortSignal.timeout(10000),
   }) };
 }
 
@@ -155,7 +155,15 @@ for (const provider of ["openai", "anthropic"]) {
     assert.equal(f.requests[0].body.stream, true);
     assert.equal(f.requests[0].body.max_tokens, 32);
     assert.equal(f.requests[0].url, provider === "openai" ? "/v1/chat/completions" : "/v1/messages");
-    if (provider === "openai") assert.deepEqual(f.requests[0].body.stream_options, { include_usage: true });
+    if (provider === "openai") {
+      assert.deepEqual(f.requests[0].body.stream_options, { include_usage: true });
+      assert.deepEqual(f.requests[0].body.messages[0], { role: "system", content: "You are a concise assistant." });
+    } else {
+      // Prompt-cache breakpoint on the system block: repeated calls with the
+      // same system text get it billed at the cached-read rate after this
+      // first request writes it.
+      assert.deepEqual(f.requests[0].body.system, [{ type: "text", text: "You are a concise assistant.", cache_control: { type: "ephemeral" } }]);
+    }
     const recorded = await logs(f.dir, 1);
     assert.equal(recorded.length, 1);
     assert.ok(Math.abs(recorded[0].financials.provider_spend_usd - (provider === "anthropic" ? 0.000018 : 0.000016)) < 1e-12);

@@ -18,6 +18,14 @@ customers:
       # cached_input: <USD per million cached input tokens>
       # source: "Your provider pricing page or contract"
       # as_of: "YYYY-MM-DD"
+      #
+      # Anthropic models need one more field: cache_write_input (USD per
+      # million tokens for writing a new prompt-cache entry — Anthropic bills
+      # this at a premium over plain input, separately from the cached-read
+      # discount). The proxy always attempts to cache the system prompt on
+      # Anthropic calls (see src/providers/anthropic.js); without this rate
+      # configured, evaluation/cost tracking for Anthropic models fails
+      # closed rather than guessing.
 
     # The customer's own provider keys — we never eat their inference cost.
     # Use ${ENV_VAR_NAME} to pull a value from an environment variable at

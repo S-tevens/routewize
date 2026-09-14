@@ -224,7 +224,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
 
     let providerSpend = null;
     try {
-      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`]);
+      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`], route.provider);
       providerSpend = priceResponse(route.provider, result.raw, rates).cost_usd;
     } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
 
@@ -318,7 +318,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
 
     let providerSpend = null;
     try {
-      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`]);
+      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`], route.provider);
       providerSpend = priceResponse(route.provider, resultSink.raw, rates).cost_usd;
     } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
 
