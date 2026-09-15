@@ -27,7 +27,7 @@ export async function callOpenAI({ apiKey, model, messages, temperature, max_tok
 // chunk before [DONE], which `resultSink.raw` captures for the caller —
 // the caller accumulates `choices[0].delta.content` across chunks itself,
 // same pattern as reading `.content` off the non-streaming result above.
-export async function* streamOpenAI({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2 }, resultSink = {}) {
+export async function* streamOpenAI({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2, signal }, resultSink = {}) {
   const client = new OpenAI({ apiKey, timeout, maxRetries });
   const stream = await client.chat.completions.create({
     model,
@@ -36,7 +36,7 @@ export async function* streamOpenAI({ apiKey, model, messages, temperature, max_
     stream_options: { include_usage: true },
     ...(temperature !== undefined ? { temperature } : {}),
     ...(max_tokens !== undefined ? { max_tokens } : {}),
-  });
+  }, { signal });
 
   for await (const chunk of stream) {
     if (chunk.usage) resultSink.raw = chunk;

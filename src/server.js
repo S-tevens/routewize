@@ -11,6 +11,7 @@ import { financialOverview } from "./logging/financialOverview.js";
 import { priceResponse, validateRates } from "./evaluation/cost.js";
 
 import { authMiddleware } from "./middleware/auth.js";
+import { validateChat } from "./middleware/validateChat.js";
 import { UsageGuard } from "./middleware/usageGuard.js";
 import { watchCustomersConfig } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
@@ -52,6 +53,12 @@ const usageGuard = new UsageGuard();
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
+app.use((err, req, res, next) => {
+  if (err.type === "entity.parse.failed" || err.type === "entity.too.large") {
+    return res.status(err.status).json({ error: { message: err.type === "entity.too.large" ? "Request body exceeds 5 MB" : "Malformed JSON body", type: "invalid_request_error" } });
+  }
+  next(err);
+});
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.get("/healthz", (req, res) => res.json({ ok: true }));
@@ -76,6 +83,8 @@ app.post("/v1/optimize", authMiddleware(CONFIG_PATH), (req, res) => {
 });
 
 app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) => {
+  try { validateChat(req.body); }
+  catch (err) { return res.status(400).json({ error: { message: err.message, type: "invalid_request_error" } }); }
   const customer = req.customer;
   const { messages, model: modelRequested, temperature, max_tokens } = req.body;
 
@@ -279,22 +288,32 @@ function endSseStream(res) {
 // has visibly started, a later failure can only be reported as an in-stream
 // error event, since the response status/headers are already sent.
 async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, embedding, embeddingText, usageGuard, forceFlagship }) {
+  const controller = new AbortController();
+  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  res.once("close", onClose);
+  if (res.destroyed) controller.abort();
+  callArgs = { ...callArgs, signal: controller.signal };
   const resultSink = {};
   const generator = route.provider === "anthropic" ? streamAnthropic(callArgs, resultSink) : streamOpenAI(callArgs, resultSink);
   const iterator = generator[Symbol.asyncIterator]();
 
+  try {
+  if (controller.signal.aborted) return;
   let first;
   try {
     first = await iterator.next();
   } catch (err) {
+    if (controller.signal.aborted) return;
     console.error(err);
     return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
 
+  if (controller.signal.aborted) return;
   writeSseHeaders(res);
   let content = "";
 
   const processChunk = (chunk) => {
+    if (controller.signal.aborted) return;
     const delta = chunk.choices?.[0]?.delta?.content;
     if (delta) content += delta;
 
@@ -348,11 +367,16 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
       }
     }
   } catch (err) {
+    if (controller.signal.aborted) return;
     console.error(err);
     writeSseChunk(res, { error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
 
-  return endSseStream(res);
+  if (!controller.signal.aborted) return endSseStream(res);
+  } finally {
+    res.off("close", onClose);
+    await iterator.return?.();
+  }
 }
 
 function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization }) {

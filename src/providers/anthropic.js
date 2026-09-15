@@ -106,7 +106,7 @@ export function translateAnthropicStreamEvent(event, state) {
 // usage shape (separate cache_read/cache_creation fields) before yielding
 // the final usage chunk, so priceResponse() can evaluate its cost —
 // deliberately not the normalized client-facing usage on the final chunk.
-export async function* streamAnthropic({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2 }, resultSink = {}) {
+export async function* streamAnthropic({ apiKey, model, messages, temperature, max_tokens, timeout = 60000, maxRetries = 2, signal }, resultSink = {}) {
   const client = new Anthropic({ apiKey, timeout, maxRetries });
 
   const systemMessages = messages.filter((m) => m.role === "system").map((m) => m.content);
@@ -121,7 +121,7 @@ export async function* streamAnthropic({ apiKey, model, messages, temperature, m
     max_tokens: max_tokens ?? 1024,
     stream: true,
     ...(temperature !== undefined ? { temperature } : {}),
-  });
+  }, { signal });
 
   const state = {};
   for await (const event of stream) {
