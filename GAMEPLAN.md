@@ -54,6 +54,39 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 | ⬜ optional | Gemini support | Spec lists as an optional "+maybe" — not started, no immediate need. |
 | ⬜ blocked (not engineering) | Real customer case study | Waiting on real traffic export from a pilot customer — this is the actual product bottleneck. Not a Codex task; needs a human to go get the data. |
 
+## Production-readiness checklist
+
+Everything needed to go from "one unpaid pilot" to "production-grade, multiple real paying customers." In priority order — top items unblock the ones below them more than the reverse. Checked = actually shipped and verified in this repo, not just started. See [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) §9 for the systems-level "why" behind the infra items, and [NON_TECHNICAL.md](NON_TECHNICAL.md) for the business-side items.
+
+### Core infrastructure
+- [x] CI pipeline (`npm test` on every PR)
+- [x] Config hot-reload (no restart to change a customer's settings)
+- [x] Secrets out of plaintext — env-var substitution (interim; see "later" row for the real fix)
+- [x] Per-customer rate limits / daily spend caps
+- [x] Streaming support (test-coverage caveat — no live provider run yet)
+- [x] Provider-native prompt caching (Anthropic)
+- [x] Queryable request log (SQLite index, no full-file scans)
+- [ ] Live streaming smoke test — blocked on a real provider key (see task queue)
+- [ ] Persistent, shared cache (Redis + pgvector/Qdrant) — deliberately deferred until there's >1 customer or >1 server process
+- [ ] Real secrets manager (Vault/AWS/GCP) — deliberately deferred until there's customer volume to justify it
+- [ ] Real config store (database or admin API) instead of one hand-edited YAML file
+- [ ] Observability: metrics (request rate/latency/error rate), alerting on provider outages or config errors, log shipping beyond a flat local JSONL file, a correlation ID per request
+- [ ] Deploy pipeline + rollback plan (a `/healthz` endpoint exists; no CD, no auto-restart, no rollback story yet)
+
+### Accurate, trustworthy savings (customer-facing — a wrong number here is worse than no number)
+- [x] Real provider usage as the source of truth — `priceResponse()` fails closed on missing/unknown pricing rather than guessing (never silently treats a gap as $0 or as savings)
+- [ ] Baseline-vs-actual shown side by side in the dashboard, not just a single savings delta — needs a UI check, not just a backend one
+- [ ] Break cache savings, routing savings, and prompt-caching savings out separately — currently blended into one `estimated_savings` number; a customer will ask which mechanism actually helped
+- [ ] Reconcile routewise's logged spend against a real customer's actual provider invoice for the same period — do this by hand for the first pilot before ever quoting a savings number to a second customer
+
+### Service delivery to customers
+- [x] Per-customer API key + provider-key isolation (multi-tenant by design already)
+- [x] Self-serve-able config changes (hot-reload means no code deploy needed per customer)
+- [ ] Written onboarding flow (currently ad hoc — signup → routewise key → their provider keys → one-line base-URL swap → done, but not documented as a repeatable checklist)
+- [ ] Billing model decision — flat fee vs. percentage-of-savings vs. usage-based; percentage-of-savings is the easiest sell but requires the invoice-reconciliation item above to be airtight first
+- [ ] Support/incident process (status page, who gets paged, how a customer reports a problem)
+- [ ] Published trust/security posture (data handling, key storage, zero lock-in) — drafted informally in NON_TECHNICAL.md, not yet a customer-facing page
+
 ## Updating this file
 
-Whenever a task above is completed, merged, or a new priority emerges: update its status in the table, and update the "Current state" date and summary. Keep entries terse — this file is meant to be read cold by an agent in under a minute, not to duplicate CONTEXT.md or SYSTEM_DESIGN.md.
+Whenever a task above is completed, merged, or a new priority emerges: update its status in the table, and update the "Current state" date and summary. Also update the **Production-readiness checklist** above whenever a push completes, changes the status of, or newly touches any item on it — check it off (or add a note) in the same push/PR, not as a follow-up. Keep entries terse — this file is meant to be read cold by an agent in under a minute, not to duplicate CONTEXT.md or SYSTEM_DESIGN.md.
