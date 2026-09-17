@@ -140,6 +140,16 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
           entry.response.usage.prompt_tokens,
           entry.response.usage.completion_tokens
         );
+        // Baseline for the "what would this have cost without routewize"
+        // chart, not the savings number above (which compares against the
+        // cached model, not necessarily the customer's default) -- always
+        // the default model, so the chart's definition of "baseline" stays
+        // consistent across cache hits, routed calls, and default-model calls.
+        const defaultModelCost = estimateCost(
+          customer.default.model,
+          entry.response.usage.prompt_tokens,
+          entry.response.usage.completion_tokens
+        );
 
         logRequestEvent({
           customer: customer.name,
@@ -152,6 +162,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
           matched_rule: null,
           estimated_savings: savedCost,
           savings_breakdown: { cache_usd: savedCost, routing_usd: 0, prompt_cache_usd: 0 },
+          cost_estimate: { baseline_usd: defaultModelCost, actual_usd: 0 },
           optimization: optimized.metrics,
         });
 
@@ -241,6 +252,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       matched_rule: route.matchedRule,
       estimated_savings: estimatedSavings,
       savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
+      cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
     });
 
@@ -338,6 +350,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
       matched_rule: route.matchedRule,
       estimated_savings: estimatedSavings,
       savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
+      cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
     });
 
