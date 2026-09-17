@@ -49,6 +49,21 @@ test("no breakdown data yet reports null, not a zeroed-out breakdown", () => {
   assert.equal(out.cost_saved_breakdown_usd, null);
   assert.equal(out.breakdown_priced_requests, 0);
 });
+test("live traffic baseline-vs-actual aggregates by day and excludes requests without cost_estimate", () => {
+  const withEstimate = (date, baseline_usd, actual_usd) => ({ customer_sha256: tenant, timestamp: `${date}T00:00:00Z`, estimated_savings: baseline_usd - actual_usd, cost_estimate: { baseline_usd, actual_usd } });
+  const legacy = { customer_sha256: tenant, timestamp: now.toISOString(), estimated_savings: 4 };
+  const out = summarizeFinancials([withEstimate("2026-09-10", 2, 1), withEstimate("2026-09-10", 1, 0), withEstimate("2026-09-11", 3, 3), legacy], [], customer, 14, now);
+  assert.deepEqual(out.live_comparison_daily, [
+    { date: "2026-09-10", baseline: 3, optimized: 1, pairs: 2 },
+    { date: "2026-09-11", baseline: 3, optimized: 3, pairs: 1 },
+  ]);
+  assert.equal(out.live_priced_requests, 3);
+});
+test("no cost_estimate data yet reports an empty live comparison, not a fabricated one", () => {
+  const out = summarizeFinancials([event(2)], [], customer, 14, now);
+  assert.deepEqual(out.live_comparison_daily, []);
+  assert.equal(out.live_priced_requests, 0);
+});
 test("date window and customer hash isolate billing evidence", () => {
   const old = { ...receipt("old"), created_at: "2026-08-01T00:00:00Z" };
   const other = { ...receipt("other"), customer_sha256: "other" };

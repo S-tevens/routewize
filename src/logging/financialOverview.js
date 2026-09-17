@@ -27,6 +27,18 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
   const cacheSavingsSum = withBreakdown.reduce((n, e) => n + (money(e.savings_breakdown.cache_usd) ? e.savings_breakdown.cache_usd : 0), 0);
   const routingSavingsSum = withBreakdown.reduce((n, e) => n + (money(e.savings_breakdown.routing_usd) ? e.savings_breakdown.routing_usd : 0), 0);
   const promptCachePriced = withBreakdown.filter((e) => money(e.savings_breakdown.prompt_cache_usd));
+  // Live-traffic baseline-vs-actual, shaped like comparison_daily below so
+  // the same chart renderer works for both. Only requests logged after
+  // cost_estimate was introduced are included -- older rows are excluded
+  // (not counted as zero), same convention as the breakdown above.
+  const withCostEstimate = requests.filter((e) => e.cost_estimate && money(e.cost_estimate.baseline_usd) && money(e.cost_estimate.actual_usd));
+  const liveByDay = new Map();
+  for (const e of withCostEstimate) {
+    const date = e.timestamp.slice(0, 10);
+    const day = liveByDay.get(date) ?? { date, baseline: 0, optimized: 0, pairs: 0 };
+    day.baseline += e.cost_estimate.baseline_usd; day.optimized += e.cost_estimate.actual_usd; day.pairs++;
+    liveByDay.set(date, day);
+  }
   // Match current API-key identity; never merge receipts by display name.
   const seen = new Set();
   const runs = receipts.filter((r) => {
@@ -72,6 +84,8 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
     known_evaluation_provider_spend_usd: testSpendKnown.length ? testSpendKnown.reduce((n, r) => n + r.summary.known_provider_spend_usd, 0) : null,
     evaluation_spend_incomplete: runs.some((r) => r.summary?.total_evaluation_cost_usd == null),
     comparison_daily: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    live_comparison_daily: [...liveByDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    live_priced_requests: withCostEstimate.length,
     invoice_verified: false,
   };
 }
