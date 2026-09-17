@@ -3,11 +3,11 @@ let pendingProof = null;
 let proofRunning = false;
 const proofMoney = (n) => n === null || n === undefined ? "Unknown" : `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(6)}`;
 async function checkProofConfig() {
-  if (!realKey) { $("proofConfig").textContent = "Connect a Routewise key to check evaluation availability."; return; }
+  if (!realKey) { $("proofConfig").textContent = "Connect a Routewize key to check evaluation availability."; return; }
   try {
     const res = await fetch("/v1/evaluations/config", { headers: { Authorization: `Bearer ${realKey}` } });
     const config = await res.json();
-    if (!res.ok) throw new Error("Could not check configuration. Verify your Routewise key.");
+    if (!res.ok) throw new Error("Could not check configuration. Verify your Routewize key.");
     $("proofConfig").textContent = config.ready ? `Ready · ${config.provider} / ${config.default_model}. Costs use the rates configured for your account.` : config.reason;
   } catch (err) { $("proofConfig").textContent = err.message; }
 }
@@ -20,7 +20,7 @@ $("proofForm").addEventListener("submit", async (event) => {
   if (proofRunning) return;
   $("proofError").hidden = true;
   try {
-    if (!realKey) throw new Error("Connect your Routewise key first.");
+    if (!realKey) throw new Error("Connect your Routewize key first.");
     const sample = playgroundPayload();
     const expected = $("expectedPhrases").value.split("\n").map((s) => s.trim()).filter(Boolean);
     if (!expected.length) throw new Error("Add at least one required answer phrase.");
@@ -28,7 +28,7 @@ $("proofForm").addEventListener("submit", async (event) => {
     // Reuse the key after a network failure; do not silently create another paid job.
     if (pendingProof && pendingProof.payload !== payload) throw new Error("The prior comparison has an uncertain outcome. Restore its inputs and retry to recover it before starting a different comparison.");
     if (!pendingProof) pendingProof = { payload, id: crypto.randomUUID(), apiKey: realKey };
-    if (pendingProof.apiKey !== realKey) throw new Error("Use the original Routewise key to recover the pending comparison.");
+    if (pendingProof.apiKey !== realKey) throw new Error("Use the original Routewize key to recover the pending comparison.");
     proofRunning = true;
     $("runProof").disabled = true;
     $("runProof").textContent = "Comparing two model calls…";
@@ -83,6 +83,6 @@ $("proofForm").addEventListener("submit", async (event) => {
 $("downloadProof").addEventListener("click", () => {
   if (!proofReport) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(proofReport, null, 2)], { type: "application/json" }));
-  const link = document.createElement("a"); link.href = url; link.download = `routewise-evaluation-${proofReport.id}.json`; link.click();
+  const link = document.createElement("a"); link.href = url; link.download = `routewize-evaluation-${proofReport.id}.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });

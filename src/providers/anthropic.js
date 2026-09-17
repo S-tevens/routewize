@@ -1,5 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+// Marks the system prompt as an Anthropic prompt-cache breakpoint: repeated
+// calls that send the same system text (the common case — a customer's
+// system prompt rarely changes between requests) get that portion billed at
+// the cached-read rate instead of full price after the first call writes it.
+// Anthropic silently skips caching blocks under its per-model minimum length
+// (no error, no cost penalty) — so it's always safe to attach, not gated on
+// prompt length or a config flag.
+function buildCachedSystem(systemMessages) {
+  const text = systemMessages.join("\n");
+  if (!text) return undefined;
+  return [{ type: "text", text, cache_control: { type: "ephemeral" } }];
+}
+
 // Translates an OpenAI-shaped chat request to Anthropic's Messages API and
 // back, so the customer always sees an OpenAI-compatible response no matter
 // which provider actually served the request.
@@ -13,7 +26,7 @@ export async function callAnthropic({ apiKey, model, messages, temperature, max_
 
   const response = await client.messages.create({
     model,
-    system: systemMessages.join("\n") || undefined,
+    system: buildCachedSystem(systemMessages),
     messages: conversation,
     max_tokens: max_tokens ?? 1024,
     ...(temperature !== undefined ? { temperature } : {}),
@@ -116,7 +129,7 @@ export async function* streamAnthropic({ apiKey, model, messages, temperature, m
 
   const stream = await client.messages.create({
     model,
-    system: systemMessages.join("\n") || undefined,
+    system: buildCachedSystem(systemMessages),
     messages: conversation,
     max_tokens: max_tokens ?? 1024,
     stream: true,

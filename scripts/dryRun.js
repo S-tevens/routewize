@@ -130,7 +130,7 @@ async function main() {
 
   const savingsPct = baselineCostTotal > 0 ? ((baselineCostTotal - optimizedCostTotal) / baselineCostTotal) * 100 : 0;
 
-  console.log("\n=== routewise — Dry Run Report ===\n");
+  console.log("\n=== routewize — Dry Run Report ===\n");
   console.log(`Requests analyzed:     ${totalRequests}`);
   console.log(`Cache hits:            ${cacheHits} (${pct(cacheHits, totalRequests)})`);
   console.log(`Routed to cheaper model: ${routedToCheaper} (${pct(routedToCheaper, totalRequests)})`);

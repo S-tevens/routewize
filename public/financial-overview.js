@@ -5,6 +5,7 @@ function clearFinancialOverview() {
   $("providerSpendNote").textContent = "Waiting for recorded provider usage.";
   $("potentialSavingsNote").textContent = "Run Savings proof to measure the difference.";
   $("costSavedNote").textContent = "Avoided costs estimated from gateway logs.";
+  $("costSavedBreakdown").textContent = "";
   $("evaluationSpendNote").textContent = "Separate from gateway spend";
   $("costComparison").setAttribute("hidden", "");
   $("comparisonEmpty").hidden = false;
@@ -14,7 +15,7 @@ async function loadFinancialOverview() {
   overviewController?.abort();
   const controller = new AbortController(); overviewController = controller;
   clearFinancialOverview();
-  if (!realKey) { $("moneyStatus").textContent = "Connect your Routewise key to load financial evidence."; return; }
+  if (!realKey) { $("moneyStatus").textContent = "Connect your Routewize key to load financial evidence."; return; }
   $("moneyStatus").textContent = "Loading recorded costs…";
   try {
     const res = await fetch(`/api/financial-overview?days=${$("overviewDays").value}`, { headers: { Authorization: `Bearer ${realKey}` }, signal: controller.signal });
@@ -26,6 +27,10 @@ async function loadFinancialOverview() {
     $("potentialSavingsNote").textContent = data.qualified_pairs ? `${data.qualified_pairs} test pairs passed phrase checks.${data.potential_reduction_pct == null ? "" : ` ${data.potential_reduction_pct.toFixed(1)}% net reduction on those pairs.`}` : "No priced comparisons passing both answer checks yet.";
     $("costSaved").textContent = preciseMoney(data.cost_saved_estimate_usd);
     $("costSavedNote").textContent = data.unverified_historical_requests ? `Includes ${data.unverified_historical_requests} unverified historical requests that may contain demo data. Not realized savings.` : "Caching and routing estimates. Excludes unknown overhead and evaluation potential.";
+    const breakdown = data.cost_saved_breakdown_usd;
+    $("costSavedBreakdown").textContent = breakdown
+      ? `Cache ${preciseMoney(breakdown.cache_usd)} · Routing ${preciseMoney(breakdown.routing_usd)} · Prompt caching ${breakdown.prompt_cache_usd == null ? "unpriced" : preciseMoney(breakdown.prompt_cache_usd)}`
+      : "";
     $("moneyRequests").textContent = data.request_count.toLocaleString();
     $("evaluationSpend").textContent = preciseMoney(data.known_evaluation_provider_spend_usd);
     $("evaluationSpendNote").textContent = data.evaluation_spend_incomplete ? "Known portion only; some charges are unknown" : "Both test arms; excludes supplied overhead";

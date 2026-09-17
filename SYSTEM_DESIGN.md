@@ -1,4 +1,4 @@
-# routewise — System Design
+# routewize — System Design
 
 Last updated: 2026-09-13
 
@@ -24,7 +24,7 @@ This describes the system as it actually exists on `main` today, not an aspirati
 flowchart LR
     App["Customer's app\n(OpenAI SDK, base_url swapped)"] -->|"POST /v1/chat/completions"| Proxy
 
-    subgraph Proxy["routewise process (src/server.js)"]
+    subgraph Proxy["routewize process (src/server.js)"]
         Auth["Auth middleware\n(API key -> customer config)"]
         Opt["Context optimizer\n(compress / select docs)"]
         Router["Rules router\n(customer-configured)"]
@@ -113,6 +113,14 @@ Everything above (rate limit, context optimization, routing, cache namespace con
 
 **Known test-coverage limit, stated plainly:** the Anthropic event-translation logic and the two-phase-commit error handling are unit- and live-tested (confirmed live: an immediate auth failure returns a clean `502` for both providers, not a botched SSE stream). Six offline HTTP integration tests now exercise the real proxy and SDK adapters against local synthetic provider endpoints, covering incremental success, usage/rw_meta, configured-rate logging, cache reuse, and failures before/after the first chunk. Anthropic native usage is published before yielding its final usage chunk, so the proxy can price it immediately (previously it was only set after iteration finished, leaving logged spend unknown). Real successful provider streams remain unverified because no real API key is available; offline fixtures do not replace that check.
 
+### Prompt caching (provider-native, separate from the semantic cache)
+
+This is *not* the semantic cache (§3 above) — it's each provider's own server-side prefix cache, and it applies even on a semantic-cache miss (i.e. a genuinely new prompt still benefits if it shares a long prefix, like a system prompt, with a prior request).
+
+- **Anthropic**: `buildCachedSystem()` in `src/providers/anthropic.js` always sends the system prompt as a content block with `cache_control: {type: "ephemeral"}`, for both `callAnthropic` and `streamAnthropic`. The first request that sees a given system text pays a *write* premium (`cache_creation_input_tokens`, billed at `cache_write_input`); every subsequent request within the cache's TTL that reuses the same text pays the discounted *read* rate (`cache_read_input_tokens`, billed at `cached_input`) instead of full price. System prompts under Anthropic's per-model minimum cacheable length are silently not cached (no error, no write-premium charge either) — so this is unconditional, not gated on prompt length or a config flag. Only the system prompt is cached; per-turn conversation content is not (a good target for later if a customer's usage pattern calls for it).
+- **OpenAI**: caching is fully automatic on OpenAI's side for prompts over roughly 1,024 tokens — no request changes needed. `priceResponse()` in `src/evaluation/cost.js` already reads `prompt_tokens_details.cached_tokens` from OpenAI's usage response, so this "just works" once it starts happening; nothing in this repo enables or gates it.
+- **Cost accounting**: `validateRates()`/`priceResponse()` (`src/evaluation/cost.js`) require a `cache_write_input` rate for any Anthropic model configured for cost evaluation — same fail-closed philosophy as everything else in that subsystem: an unpriced cache write never gets silently treated as free or folded into the wrong rate.
+
 ## 4. Component reference
 
 | Component | File(s) | Responsibility |
@@ -123,7 +131,7 @@ Everything above (rate limit, context optimization, routing, cache namespace con
 | Router | `src/router/rules.js` | Pure function: `(customer, promptText, forceFlagship) -> route`. Stateless, no I/O — fully unit-testable, which is why it has the most thorough test coverage. |
 | Semantic cache | `src/cache/semanticCache.js` | In-memory `Map<namespace, entry[]>`. Cosine similarity search, TTL expiry, bounded to 1,000 total entries (oldest evicted first across all namespaces). |
 | Embeddings | `src/cache/embeddings.js` | Two providers: real OpenAI `text-embedding-3-small`, or a free deterministic "mock" (bag-of-hashed-tokens) for offline testing. **The mock is known to overweight shared template phrasing** — confirmed via diagnostic to produce zero cross-topic false positives, but inflated hit-rate numbers on template-heavy synthetic data. Never treat a mock-embedding dry-run number as a real-world estimate. |
-| Provider adapters | `src/providers/openai.js`, `src/providers/anthropic.js` | OpenAI is a passthrough. Anthropic translates the OpenAI-shaped request to the Messages API and translates the response back, so the customer's app never needs to know which provider actually served a given request. Both have a 60s timeout and 2 SDK-level retries. Each also exports a streaming variant (`streamOpenAI`/`streamAnthropic`) yielding OpenAI-shaped `chat.completion.chunk` objects — Anthropic's native event stream is translated chunk-by-chunk via the pure, unit-tested `translateAnthropicStreamEvent()`. |
+| Provider adapters | `src/providers/openai.js`, `src/providers/anthropic.js` | OpenAI is a passthrough. Anthropic translates the OpenAI-shaped request to the Messages API and translates the response back, so the customer's app never needs to know which provider actually served a given request. Both have a 60s timeout and 2 SDK-level retries. Each also exports a streaming variant (`streamOpenAI`/`streamAnthropic`) yielding OpenAI-shaped `chat.completion.chunk` objects — Anthropic's native event stream is translated chunk-by-chunk via the pure, unit-tested `translateAnthropicStreamEvent()`. Anthropic requests also mark the system prompt as a provider-native prompt-cache breakpoint — see "Prompt caching" above. |
 | Usage guard | `src/middleware/usageGuard.js` | Per-customer requests/minute limit and an optional daily spend cap (UTC day), checked in `server.js` before any provider spend is committed — cache hits are exempt from the spend cap since they cost $0. In-memory, per-process; resets on restart same as the semantic cache. |
 | Pricing | `src/logging/pricing.js` | Fetches live per-model $/token from tokenscost.com at startup (3s timeout, falls back to a small static table on failure or `PRICING_SOURCE=static`). Used for both the live `estimated_savings` field and the dry-run report. |
 | Cost evaluation | `src/evaluation/*.js` | A *separate, opt-in* subsystem for proving savings against real paid calls with customer-confirmed rates. Fails closed: missing/unknown pricing is never treated as free. Idempotency-key protected against duplicate paid calls; one evaluation per customer at a time. |

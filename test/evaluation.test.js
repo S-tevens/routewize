@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateRates, priceResponse } from "../src/evaluation/cost.js";
+import { validateRates, priceResponse, promptCacheSavings } from "../src/evaluation/cost.js";
 import { prepareEvaluation, runEvaluation } from "../src/evaluation/evaluate.js";
 import { optimizeContext } from "../src/optimization/context.js";
 
-const rates = { input: 2, output: 8, cached_input: 0.5, source: "test fixture, not live pricing", as_of: "2026-09-10" };
+const rates = { input: 2, output: 8, cached_input: 0.5, cache_write_input: 2.5, source: "test fixture, not live pricing", as_of: "2026-09-10" };
 const customer = { default: { provider: "openai", model: "test-model" }, provider_keys: { openai: "test-only-not-a-real-key" }, evaluation: { enabled: true, pricing: { "openai/test-model": rates } } };
 function body(overrides = {}) { return { confirm_paid_calls: true, overhead_usd_per_request: 0, cases: [{ messages: [{ role: "user", content: "refund policy?" }], expected_contains: ["30 days"], rw_optimization: { compression: true, selection: true, context: [{ id: "r", text: "30 days\n\n30 days" }] } }], ...overrides }; }
 const response = (input = 100, text = "Refunds within 30 days.", finish = "stop") => ({ content: text, raw: { id: "fixture-response", model: "test-model", choices: [{ finish_reason: finish }], usage: { prompt_tokens: input, completion_tokens: 10, prompt_tokens_details: { cached_tokens: 0 } } } });
@@ -19,13 +19,37 @@ test("Anthropic cached reads are additional to normal input", () => {
   assert.equal(priced.input_tokens, 100);
   assert.equal(priced.cost_usd, 0.00016);
 });
+test("Anthropic cache writes are priced at the configured write rate, separately from input and cached reads", () => {
+  const priced = priceResponse("anthropic", { usage: { input_tokens: 10, output_tokens: 2, cache_creation_input_tokens: 100 } }, rates);
+  assert.equal(priced.cache_write_input_tokens, 100);
+  // (10 * 2 + 100 * 2.5 + 2 * 8) / 1e6
+  assert.ok(Math.abs(priced.cost_usd - 0.000286) < 1e-9);
+});
+test("promptCacheSavings reports the read discount for OpenAI, separately from priceResponse's total", () => {
+  const raw = response().raw;
+  raw.usage.prompt_tokens_details.cached_tokens = 80;
+  assert.ok(Math.abs(promptCacheSavings("openai", raw, rates) - 0.00012) < 1e-12);
+});
+test("promptCacheSavings nets Anthropic's read discount against its write premium", () => {
+  const readOnly = promptCacheSavings("anthropic", { usage: { cache_read_input_tokens: 80, cache_creation_input_tokens: 0 } }, rates);
+  assert.ok(Math.abs(readOnly - 0.00012) < 1e-12);
+  // A cache write is a real, temporary cost -- negative, not clamped to zero.
+  const writeOnly = promptCacheSavings("anthropic", { usage: { cache_read_input_tokens: 0, cache_creation_input_tokens: 100 } }, rates);
+  assert.ok(Math.abs(writeOnly - -0.00005) < 1e-12);
+});
+test("promptCacheSavings is null (not zero) when the needed rate isn't configured", () => {
+  assert.equal(promptCacheSavings("openai", response().raw, { input: 2, output: 8 }), null);
+  assert.equal(promptCacheSavings("anthropic", { usage: { cache_read_input_tokens: 5 } }, { input: 2, output: 8, cached_input: 0.5 }), null);
+  assert.equal(promptCacheSavings("unsupported-provider", {}, rates), null);
+});
 test("missing usage and unsupported billable categories never price as zero", () => {
   assert.throws(() => priceResponse("openai", {}, rates));
-  assert.throws(() => priceResponse("anthropic", { usage: { input_tokens: 10, output_tokens: 2, cache_creation_input_tokens: 10 } }, rates));
+  assert.throws(() => priceResponse("anthropic", { usage: { input_tokens: 10, output_tokens: 2, cache_creation_input_tokens: 10 } }, { ...rates, cache_write_input: undefined }), /Cache write rate is not configured/);
   assert.throws(() => priceResponse("openai", { usage: { prompt_tokens: 2, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 3 } } }, rates));
 });
 test("evaluations require explicit rates, real configuration and paid-call consent", () => {
   assert.throws(() => validateRates({ input: 1, output: 1 }));
+  assert.throws(() => validateRates({ input: 1, output: 1, cached_input: 0.5 }, "anthropic"), /cache_write_input/);
   assert.throws(() => prepareEvaluation({ ...customer, evaluation: { enabled: false } }, body()));
   assert.throws(() => prepareEvaluation(customer, body({ confirm_paid_calls: false })));
   assert.throws(() => prepareEvaluation(customer, body({ overhead_usd_per_request: undefined })));

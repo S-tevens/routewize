@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>routewise — Savings dashboard</title>
+<title>routewize — Savings dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.5 6 L7 9 L17 15 L6.5 18' fill='none' stroke='%23cbf24f' stroke-width='4.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/reference-ui.css">
@@ -12,8 +12,8 @@
 <div class="app-shell">
 
 <header class="topbar">
-  <a class="brand brand-logo" href="#playground" aria-label="Routewise playground">
-    <img src="/routewise-logo.png" width="1600" height="548" alt="Routewise">
+  <a class="brand brand-logo" href="#playground" aria-label="Routewize playground">
+    <img src="/routewize-logo.png" width="1600" height="548" alt="Routewize">
   </a>
 
   <div class="toolbar">
@@ -22,7 +22,7 @@
       <span id="statusLabel">Not connected</span>
     </div>
     <div class="keybox">
-      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewise API key" aria-label="routewise API key">
+      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewize API key" aria-label="routewize API key">
       <button id="connectBtn">Connect</button>
     </div>
   </div>
@@ -57,7 +57,7 @@
         <p id="protectedHelp" class="field-help">These documents stay unchanged, even if they exceed your context budget.</p>
         <div id="previewError" class="inline-error" role="alert" hidden></div>
         <button type="submit" id="runOptimization" class="primary-button">Optimize context <span>→</span></button>
-        <p class="field-help footnote">Uses your connected Routewise key. No answer is generated.</p>
+        <p class="field-help footnote">Uses your connected Routewize key. No answer is generated.</p>
       </form>
       <section class="result-card" aria-label="Optimization result" aria-live="polite">
         <div class="card-heading"><h2>Your result</h2><span id="resultStatus" class="neutral-badge">Ready when you are</span></div>
@@ -75,8 +75,8 @@
   </section>
 
   <section id="guideView" hidden>
-    <div class="workspace-heading"><div><h1>Connect your application</h1><p>Bring your existing Routewise key and connect your application.</p></div></div>
-    <div class="guide-card"><h2>1. Connect your key</h2><p>Enter your Routewise customer key in the header. Your provider keys stay in the server configuration.</p><h2>2. Preview your context</h2><p>Use the Playground to inspect compression and document selection without making a paid model call.</p><h2>3. Send an optimized model request</h2><p>Use the chat endpoint with your question and reference documents. Caching and routing follow your customer configuration.</p><pre id="integrationCode"></pre><p class="field-help">Text requests only. Streaming and tool calls are not supported yet. The preview endpoint does not add entries to usage history.</p></div>
+    <div class="workspace-heading"><div><h1>Connect your application</h1><p>Bring your existing Routewize key and connect your application.</p></div></div>
+    <div class="guide-card"><h2>1. Connect your key</h2><p>Enter your Routewize customer key in the header. Your provider keys stay in the server configuration.</p><h2>2. Preview your context</h2><p>Use the Playground to inspect compression and document selection without making a paid model call.</p><h2>3. Send an optimized model request</h2><p>Use the chat endpoint with your question and reference documents. Caching and routing follow your customer configuration.</p><pre id="integrationCode"></pre><p class="field-help">Text requests only. Streaming and tool calls are not supported yet. The preview endpoint does not add entries to usage history.</p></div>
   </section>
 
   <section id="proofView" hidden>
@@ -85,7 +85,7 @@
       <form id="proofForm" class="editor-card">
         <div class="card-heading"><h2>Compare your Playground input</h2></div>
         <p class="field-help">Uses the question, documents, protection settings and optimizations from Playground. Both answers are generated fresh; response caching is bypassed.</p>
-        <p id="proofConfig" class="proof-notice" role="status">Connect a Routewise key to check evaluation availability.</p>
+        <p id="proofConfig" class="proof-notice" role="status">Connect a Routewize key to check evaluation availability.</p>
         <label for="expectedPhrases">What must the answer include?</label>
         <textarea id="expectedPhrases" rows="3" required placeholder="One required phrase per line, e.g. 30 days"></textarea>
         <p class="field-help">Case-insensitive phrase checks only. They do not establish factual correctness or equivalent answer quality.</p>
@@ -126,12 +126,12 @@
 
   <section class="money-overview" aria-label="Costs and savings">
     <div class="money-heading"><h2>Spend a little wiser.</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
-    <p id="moneyStatus" class="field-help" role="status">Connect your Routewise key to load financial evidence.</p>
+    <p id="moneyStatus" class="field-help" role="status">Connect your Routewize key to load financial evidence.</p>
     <div class="money-layout">
       <div class="money-cards">
         <article class="money-card spend"><h3>Provider spend <span aria-hidden="true">↗</span></h3><strong id="providerSpend">—</strong><span class="money-badge">From gateway requests</span><p id="providerSpendNote">Waiting for recorded provider usage.</p></article>
         <article class="money-card potential"><h3>Potential savings <span aria-hidden="true">✧</span></h3><strong id="potentialSavings">—</strong><span class="money-badge">Test-sample potential</span><p id="potentialSavingsNote">Run Savings proof to measure the difference.</p></article>
-        <article class="money-card saved"><div><h3>Cost saved <span class="money-badge">Estimated</span></h3><strong id="costSaved">—</strong></div><p id="costSavedNote">Avoided costs estimated from gateway logs.</p></article>
+        <article class="money-card saved"><div><h3>Cost saved <span class="money-badge">Estimated</span></h3><strong id="costSaved">—</strong></div><p id="costSavedNote">Avoided costs estimated from gateway logs.</p><p id="costSavedBreakdown" class="money-breakdown"></p></article>
         <div class="money-foot"><div><span>Gateway requests</span><strong id="moneyRequests">—</strong></div><div><span>Evaluation provider spend</span><strong id="evaluationSpend">—</strong><small id="evaluationSpendNote">Separate from gateway spend</small></div></div>
       </div>
       <section class="money-chart"><div class="money-chart-heading"><h2>Cost comparison</h2><span>Paid evaluations</span></div><p id="comparisonNote">Original vs optimized cost for the same test inputs.</p><div id="comparisonEmpty">Run a paid comparison in Savings proof to build this graph. No financial results are simulated.</div><svg id="costComparison" role="img" aria-label="Original and optimized evaluation costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Original</span><span><i class="legend-candidate"></i> Optimized + overhead</span></div><p class="chart-caption">Includes all priced comparisons. Potential savings only includes pairs passing the required phrase checks.</p></section>
@@ -145,7 +145,7 @@
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/><path d="M3 19h18"/></svg>
       </div>
       <h2>Connect your workspace</h2>
-      <p>Enter your Routewise API key above to reveal cache performance, routing outcomes, and estimated savings.</p>
+      <p>Enter your Routewize API key above to reveal cache performance, routing outcomes, and estimated savings.</p>
       <span class="privacy">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
         Your key is saved in this browser
@@ -509,7 +509,7 @@ async function loadStats() {
 
     if (stats.totalRequests === 0) {
       $("dashboard").hidden = true;
-      setEmptyState("Connected and ready", "No requests have been logged for this key yet. Your dashboard will populate as traffic flows through Routewise.");
+      setEmptyState("Connected and ready", "No requests have been logged for this key yet. Your dashboard will populate as traffic flows through Routewize.");
       return;
     }
 

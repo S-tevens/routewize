@@ -8,7 +8,7 @@ import OpenAI from "openai";
 import { optimizeContext } from "./optimization/context.js";
 import { evaluationRouter } from "./evaluation/routes.js";
 import { financialOverview } from "./logging/financialOverview.js";
-import { priceResponse, validateRates } from "./evaluation/cost.js";
+import { priceResponse, validateRates, promptCacheSavings } from "./evaluation/cost.js";
 
 import { authMiddleware } from "./middleware/auth.js";
 import { validateChat } from "./middleware/validateChat.js";
@@ -160,6 +160,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
           similarity: result.similarity,
           matched_rule: null,
           estimated_savings: savedCost,
+          savings_breakdown: { cache_usd: savedCost, routing_usd: 0, prompt_cache_usd: 0 },
           optimization: optimized.metrics,
         });
 
@@ -232,9 +233,11 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     usageGuard.recordSpend(customer.api_key, actualCost);
 
     let providerSpend = null;
+    let promptCacheSavingsUsd = null;
     try {
-      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`]);
+      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`], route.provider);
       providerSpend = priceResponse(route.provider, result.raw, rates).cost_usd;
+      promptCacheSavingsUsd = promptCacheSavings(route.provider, result.raw, rates);
     } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
 
     logRequestEvent({
@@ -246,6 +249,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       cache_hit: false,
       matched_rule: route.matchedRule,
       estimated_savings: estimatedSavings,
+      savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
       optimization: optimized.metrics,
     });
 
@@ -336,9 +340,11 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     }
 
     let providerSpend = null;
+    let promptCacheSavingsUsd = null;
     try {
-      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`]);
+      const rates = validateRates(customer.evaluation?.pricing?.[`${route.provider}/${route.model}`], route.provider);
       providerSpend = priceResponse(route.provider, resultSink.raw, rates).cost_usd;
+      promptCacheSavingsUsd = promptCacheSavings(route.provider, resultSink.raw, rates);
     } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
 
     logRequestEvent({
@@ -350,6 +356,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
       cache_hit: false,
       matched_rule: route.matchedRule,
       estimated_savings: estimatedSavings,
+      savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
       optimization: optimized.metrics,
     });
 
@@ -398,6 +405,6 @@ function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estim
 await loadRemotePricing();
 
 app.listen(PORT, () => {
-  console.log(`routewise listening on http://localhost:${PORT}`);
+  console.log(`routewize listening on http://localhost:${PORT}`);
   console.log(`Customer config: ${CONFIG_PATH}`);
 });

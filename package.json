@@ -1,5 +1,5 @@
 {
-  "name": "routewise",
+  "name": "routewize",
   "version": "0.1.0",
   "description": "Drop-in proxy that caches semantically similar LLM requests and routes simple requests to cheaper models based on customer-configured rules.",
   "type": "module",

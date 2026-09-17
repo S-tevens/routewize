@@ -35,6 +35,20 @@ test("negative potential is preserved and receipt duplicates do not inflate spen
   assert.equal(out.potential_savings_usd, -3);
   assert.equal(out.evaluation_count, 1);
 });
+test("savings breakdown sums per-mechanism fields and excludes requests logged before the field existed", () => {
+  const withBreakdown = (cache_usd, routing_usd, prompt_cache_usd) => ({ customer_sha256: tenant, timestamp: now.toISOString(), estimated_savings: cache_usd + routing_usd, savings_breakdown: { cache_usd, routing_usd, prompt_cache_usd } });
+  const legacy = { customer_sha256: tenant, timestamp: now.toISOString(), estimated_savings: 4 };
+  const out = summarizeFinancials([withBreakdown(1, 0, 0.2), withBreakdown(0, 3, null), legacy], [], customer, 14, now);
+  assert.deepEqual(out.cost_saved_breakdown_usd, { cache_usd: 1, routing_usd: 3, prompt_cache_usd: 0.2 });
+  assert.equal(out.breakdown_priced_requests, 2);
+  assert.equal(out.prompt_cache_priced_requests, 1);
+  assert.equal(out.cost_saved_estimate_usd, 8, "the blended total still includes the legacy request");
+});
+test("no breakdown data yet reports null, not a zeroed-out breakdown", () => {
+  const out = summarizeFinancials([event(2)], [], customer, 14, now);
+  assert.equal(out.cost_saved_breakdown_usd, null);
+  assert.equal(out.breakdown_priced_requests, 0);
+});
 test("date window and customer hash isolate billing evidence", () => {
   const old = { ...receipt("old"), created_at: "2026-08-01T00:00:00Z" };
   const other = { ...receipt("other"), customer_sha256: "other" };
