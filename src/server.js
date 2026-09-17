@@ -381,6 +381,6 @@ function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estim
 await loadRemotePricing();
 
 app.listen(PORT, () => {
-  console.log(`routewise listening on http://localhost:${PORT}`);
+  console.log(`routewize listening on http://localhost:${PORT}`);
   console.log(`Customer config: ${CONFIG_PATH}`);
 });

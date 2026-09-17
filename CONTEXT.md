@@ -1,4 +1,4 @@
-# routewise — Team Context
+# routewize — Team Context
 
 Last updated: 2026-09-09
 
@@ -15,7 +15,7 @@ Full product spec: see the original `finops-mvp-spec.md`-style scope notes refer
 
 ## Repo
 
-Private: **https://github.com/S-tevens/routewise**
+Private: **https://github.com/S-tevens/routewize**
 
 ## What's built and working
 
@@ -27,10 +27,10 @@ All of this has been manually and automatically verified (not just written):
 - **Provider adapters** ([src/providers/](src/providers/)) — OpenAI passthrough, Anthropic request/response translation (so the customer always sees an OpenAI-shaped response regardless of which provider actually served it).
 - **Live pricing feed** ([src/logging/pricing.js](src/logging/pricing.js)) — pulls real per-model $/token from `tokenscost.com` at startup (425 models, daily updates), falls back to a small built-in table if that fails or is disabled (`PRICING_SOURCE=static`).
 - **Cost logging** ([src/logging/logger.js](src/logging/logger.js), [stats.js](src/logging/stats.js)) — append-only log of every request; `stats.js` aggregates it into per-day breakdowns (cache hits / routed / flagship / savings).
-- **Savings dashboard** ([public/dashboard.html](public/dashboard.html)) — read-only, served at `/dashboard.html`. Enter a customer's API key to see cache hit rate, routing breakdown, a savings sparkline, and a real (client-side, no re-fetch) 7D/14D/30D/All period filter. Branded as **routewise** per the team's design direction.
+- **Savings dashboard** ([public/dashboard.html](public/dashboard.html)) — read-only, served at `/dashboard.html`. Enter a customer's API key to see cache hit rate, routing breakdown, a savings sparkline, and a real (client-side, no re-fetch) 7D/14D/30D/All period filter. Branded as **routewize** per the team's design direction.
 - **Dry-run tool** ([scripts/dryRun.js](scripts/dryRun.js)) — replays a historical request log through the real cache+router logic with **zero live API calls**, and prints the "this would've cut your bill by X%" number. This is the actual sales proof mechanism (spec section 6).
 - **Automated tests** — 18 tests (`npm test`, Node's built-in runner) covering router rules, cache hit/miss/TTL/isolation logic, and pricing math. All passing.
-- **Pitch one-pager** ([pitch-one-pager.html](pitch-one-pager.html)) — draft outreach doc. Branded "routewise" and has a clearly-marked **"Pending"** slot for the real customer case study number — deliberately not filled with a fake number.
+- **Pitch one-pager** ([pitch-one-pager.html](pitch-one-pager.html)) — draft outreach doc. Branded "routewize" and has a clearly-marked **"Pending"** slot for the real customer case study number — deliberately not filled with a fake number.
 
 ## How to run it
 
@@ -77,6 +77,6 @@ Target for a believable pitch, per the original spec: **>20% savings**.
 
 ## Open/optional items not yet started
 
-- Pitch one-pager rebrand to "routewise" is implemented; real case-study data remains pending.
+- Pitch one-pager rebrand to "routewize" is implemented; real case-study data remains pending.
 - Gemini support (spec lists it as an optional "+maybe" — not built, no immediate need).
 - Verify/replace the possibly-stale model names in `customers.example.yaml`.

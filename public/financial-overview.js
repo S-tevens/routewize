@@ -15,7 +15,7 @@ async function loadFinancialOverview() {
   overviewController?.abort();
   const controller = new AbortController(); overviewController = controller;
   clearFinancialOverview();
-  if (!realKey) { $("moneyStatus").textContent = "Connect your Routewise key to load financial evidence."; return; }
+  if (!realKey) { $("moneyStatus").textContent = "Connect your Routewize key to load financial evidence."; return; }
   $("moneyStatus").textContent = "Loading recorded costs…";
   try {
     const res = await fetch(`/api/financial-overview?days=${$("overviewDays").value}`, { headers: { Authorization: `Bearer ${realKey}` }, signal: controller.signal });

@@ -13,7 +13,7 @@ const chunk = (model, delta, extra = {}) => ({ id: "fixture", object: "chat.comp
 const data = (res, value, type) => res.write(`${type ? `event: ${type}\n` : ""}data: ${JSON.stringify(value)}\n\n`);
 
 async function fixture(t, provider, mode) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "routewise-stream-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "routewize-stream-"));
   let child;
   let release;
   const gate = new Promise(resolve => { release = resolve; });

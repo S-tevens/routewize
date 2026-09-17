@@ -34,7 +34,7 @@ $("optimizeForm").addEventListener("submit", async (event) => {
   const error = $("previewError");
   error.hidden = true;
   if (!realKey) {
-    error.textContent = "Enter your Routewise API key in the header first, then try again.";
+    error.textContent = "Enter your Routewize API key in the header first, then try again.";
     error.hidden = false;
     $("apiKey").focus();
     return;
@@ -92,4 +92,4 @@ $("copyResult").addEventListener("click", async () => {
   catch { $("copyResult").textContent = "Select text to copy"; }
   setTimeout(() => { $("copyResult").textContent = "Copy"; }, 2500);
 });
-$("integrationCode").textContent = `curl ${location.origin}/v1/chat/completions \\\n  -H 'Authorization: Bearer YOUR_ROUTEWISE_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '${JSON.stringify({ messages: [{ role: "user", content: "What is the refund policy?" }], rw_optimization: { compression: true, selection: true, max_context_tokens: 2000, context: [{ id: "refund-policy", text: "Refunds are available within 30 days." }] } }, null, 2)}'`;
+$("integrationCode").textContent = `curl ${location.origin}/v1/chat/completions \\\n  -H 'Authorization: Bearer YOUR_ROUTEWIZE_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '${JSON.stringify({ messages: [{ role: "user", content: "What is the refund policy?" }], rw_optimization: { compression: true, selection: true, max_context_tokens: 2000, context: [{ id: "refund-policy", text: "Refunds are available within 30 days." }] } }, null, 2)}'`;

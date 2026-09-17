@@ -1,4 +1,4 @@
-# routewise — Non-Technical Notes
+# routewize — Non-Technical Notes
 
 Last updated: 2026-09-16
 
@@ -18,9 +18,9 @@ This is the counterpart to [GAMEPLAN.md](GAMEPLAN.md), [CONTEXT.md](CONTEXT.md) 
 - **Pricing**: $20/mo unlimited + 10% of realized savings (metered), 2-week free trial.
 - **Backing**: Y Combinator, team from Stanford/AWS/Apple/Accenture.
 
-**How routewise differs:**
+**How routewize differs:**
 
-| | Fermat's Last Token | routewise |
+| | Fermat's Last Token | routewize |
 |---|---|---|
 | Target | Claude Code users specifically | Any app/product calling OpenAI or Anthropic's API |
 | Integration | Sidecar to one dev tool | Drop-in proxy — swap the base URL, works with any codebase |
@@ -59,7 +59,7 @@ This is the counterpart to [GAMEPLAN.md](GAMEPLAN.md), [CONTEXT.md](CONTEXT.md) 
 
 **Short DM/Twitter version:**
 ```
-Hey [name] — saw you're running [their AI product/agent]. I built routewise, a drop-in proxy for OpenAI/Anthropic that caches repeat prompts and routes simple requests to cheaper models — typically cuts LLM spend 20-50% with zero code changes beyond swapping a base URL.
+Hey [name] — saw you're running [their AI product/agent]. I built routewize, a drop-in proxy for OpenAI/Anthropic that caches repeat prompts and routes simple requests to cheaper models — typically cuts LLM spend 20-50% with zero code changes beyond swapping a base URL.
 
 Looking for 1-2 pilot users to test it on real traffic. Free to use, no strings — I just want honest before/after numbers and feedback. Interested in a quick chat?
 ```
@@ -70,7 +70,7 @@ Subject: Free pilot — cut your OpenAI/Anthropic bill 20-50%
 
 Hi [name],
 
-I've been building routewise — a drop-in proxy that sits in front of your existing OpenAI/Anthropic calls. It caches semantically similar requests (instant, free reuse) and routes simple requests to cheaper models based on rules you control — same code, same model quality, lower bill.
+I've been building routewize — a drop-in proxy that sits in front of your existing OpenAI/Anthropic calls. It caches semantically similar requests (instant, free reuse) and routes simple requests to cheaper models based on rules you control — same code, same model quality, lower bill.
 
 I'm looking for 1-2 pilot customers to run it against real traffic. In exchange for early access (free), I'd just ask for:
 - Permission to see aggregate usage/savings data
@@ -103,7 +103,7 @@ Goal: convert a cold visitor (from a DM/forum reply) into a pilot signup — one
 4. **How it works** — 3 numbered steps (point base URL at us → we cache/route → you see savings live). Optional simple SVG diagram, not an image asset.
 5. **What the pilot actually is** — explicit bullets: free for N days, setup < 15 min, zero lock-in, what we ask for (usage data + feedback), what we don't ask for (keys stored elsewhere, access to actual conversation content beyond routing needs).
 6. **Signup form** (the functional core) — name, email, company, rough monthly spend (dropdown, qualifies leads), optional "what are you building." Wire to Formspree/Getform free tier if no backend — zero build cost, real form.
-7. **Objection-handling / mini FAQ** — "Is my data safe?", "Do you see my prompts?", "What if routewise goes down?", "Can I leave anytime?"
+7. **Objection-handling / mini FAQ** — "Is my data safe?", "Do you see my prompts?", "What if routewize goes down?", "Can I leave anytime?"
 8. **Credibility section** — no YC badge to lean on yet, so lean into transparency instead: link to the GitHub repo, link to a simplified SYSTEM_DESIGN.md, "open architecture, no black box." Once real pilot data exists, "validated on real production traffic" beats any logo wall.
 9. **Footer** — GitHub link, contact email. No pricing page yet — would undercut the "free pilot" framing.
 
@@ -123,6 +123,6 @@ Full beat-by-beat storyboard exists in conversation history if it needs to be ha
 
 ## Positioning notes (from earlier discussion)
 
-- **vs. OpenRouter**: OpenRouter is a model marketplace/router; routewise adds semantic caching and customer-configured routing rules with per-customer economics/savings tracking, not just access to many models.
+- **vs. OpenRouter**: OpenRouter is a model marketplace/router; routewize adds semantic caching and customer-configured routing rules with per-customer economics/savings tracking, not just access to many models.
 - **vs. Backboard.io**: discussed early on — see prior conversation for the detail if this needs to be re-derived.
 - **The pitch in one line**: same model quality, same code, 20–50% lower bill — because a large chunk of real-world LLM traffic is either near-duplicate (cacheable) or simple enough not to need the flagship model (routable), and both cost full price today for no reason.

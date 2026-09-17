@@ -1,4 +1,4 @@
-# routewise — System Design
+# routewize — System Design
 
 Last updated: 2026-09-13
 
@@ -24,7 +24,7 @@ This describes the system as it actually exists on `main` today, not an aspirati
 flowchart LR
     App["Customer's app\n(OpenAI SDK, base_url swapped)"] -->|"POST /v1/chat/completions"| Proxy
 
-    subgraph Proxy["routewise process (src/server.js)"]
+    subgraph Proxy["routewize process (src/server.js)"]
         Auth["Auth middleware\n(API key -> customer config)"]
         Opt["Context optimizer\n(compress / select docs)"]
         Router["Rules router\n(customer-configured)"]

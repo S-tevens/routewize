@@ -1,4 +1,4 @@
-# routewise (MVP)
+# routewize (MVP)
 
 Drop-in proxy for OpenAI/Anthropic chat completions that:
 1. **Caches** semantically similar prompts so repeat/near-duplicate requests don't hit the real API — matching is namespaced per customer, requested model, generation settings (temperature/max_tokens), and resolved route, so a hit can never reuse an answer generated under different instructions or model settings, while real embedding similarity still catches near-duplicate wording within that namespace.

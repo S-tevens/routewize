@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 
 const event = (overrides = {}) => ({ customer: "Acme", timestamp: "2026-09-12T12:00:00Z", estimated_savings: 0.25, ...overrides });
 function fixture(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "routewise-log-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "routewize-log-"));
   const log = path.join(dir, "requests.log");
   const store = new RequestLogStore(log);
   const stores = [store];
