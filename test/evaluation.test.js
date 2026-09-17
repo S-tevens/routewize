@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateRates, priceResponse } from "../src/evaluation/cost.js";
+import { validateRates, priceResponse, promptCacheSavings } from "../src/evaluation/cost.js";
 import { prepareEvaluation, runEvaluation } from "../src/evaluation/evaluate.js";
 import { optimizeContext } from "../src/optimization/context.js";
 
@@ -24,6 +24,23 @@ test("Anthropic cache writes are priced at the configured write rate, separately
   assert.equal(priced.cache_write_input_tokens, 100);
   // (10 * 2 + 100 * 2.5 + 2 * 8) / 1e6
   assert.ok(Math.abs(priced.cost_usd - 0.000286) < 1e-9);
+});
+test("promptCacheSavings reports the read discount for OpenAI, separately from priceResponse's total", () => {
+  const raw = response().raw;
+  raw.usage.prompt_tokens_details.cached_tokens = 80;
+  assert.ok(Math.abs(promptCacheSavings("openai", raw, rates) - 0.00012) < 1e-12);
+});
+test("promptCacheSavings nets Anthropic's read discount against its write premium", () => {
+  const readOnly = promptCacheSavings("anthropic", { usage: { cache_read_input_tokens: 80, cache_creation_input_tokens: 0 } }, rates);
+  assert.ok(Math.abs(readOnly - 0.00012) < 1e-12);
+  // A cache write is a real, temporary cost -- negative, not clamped to zero.
+  const writeOnly = promptCacheSavings("anthropic", { usage: { cache_read_input_tokens: 0, cache_creation_input_tokens: 100 } }, rates);
+  assert.ok(Math.abs(writeOnly - -0.00005) < 1e-12);
+});
+test("promptCacheSavings is null (not zero) when the needed rate isn't configured", () => {
+  assert.equal(promptCacheSavings("openai", response().raw, { input: 2, output: 8 }), null);
+  assert.equal(promptCacheSavings("anthropic", { usage: { cache_read_input_tokens: 5 } }, { input: 2, output: 8, cached_input: 0.5 }), null);
+  assert.equal(promptCacheSavings("unsupported-provider", {}, rates), null);
 });
 test("missing usage and unsupported billable categories never price as zero", () => {
   assert.throws(() => priceResponse("openai", {}, rates));
