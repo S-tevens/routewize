@@ -31,6 +31,8 @@ Merged to `master`: core proxy (now with streaming support and Anthropic prompt 
 
 **The actual bottleneck is not engineering** — it's that there is still no real customer traffic data. Every savings number produced so far is synthetic. Don't let engineering work substitute for getting that data; see CONTEXT.md's "Next steps" for the non-engineering sequence.
 
+**Unscheduled WIP, accounted for 2026-09-17:** `feature/offline-hardening` preserves commit `30c3ed0` (request-body validation and streaming client-disconnect cancellation). Master through `24a22e4` has been merged into it, including the routewize rebrand, PR #6 prompt caching, and PR #7 savings breakdown. This branch is not merged or ready for production and is not a new `todo`. It changes accepted request options and streaming cancellation behavior, but has no dedicated validation/disconnect tests yet. It is separate from PR #5's already-merged offline streaming tests. Log retention/rotation and the offline setup check from the original proposal were never implemented. The earlier zero-open-branches summary describes the merged baseline, not this preserved WIP.
+
 ## Task queue
 
 Pick the next `todo` item top-down unless you have a specific reason not to. Before starting one, check open PRs/branches so two people don't pick up the same thing — if in doubt, open a draft PR early to claim it.
@@ -66,6 +68,7 @@ Everything needed to go from "one unpaid pilot" to "production-grade, multiple r
 - [x] Streaming support (test-coverage caveat — no live provider run yet)
 - [x] Provider-native prompt caching (Anthropic)
 - [x] Queryable request log (SQLite index, no full-file scans)
+- [ ] Request validation and cancellation on client disconnect — partial, unreviewed WIP on `feature/offline-hardening`; dedicated tests and compatibility review still needed, not shipped
 - [ ] Live streaming smoke test — blocked on a real provider key (see task queue)
 - [ ] Persistent, shared cache (Redis + pgvector/Qdrant) — deliberately deferred until there's >1 customer or >1 server process
 - [ ] Real secrets manager (Vault/AWS/GCP) — deliberately deferred until there's customer volume to justify it
