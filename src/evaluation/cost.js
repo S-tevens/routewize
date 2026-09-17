@@ -35,3 +35,28 @@ export function priceResponse(provider, raw, rates) {
   const cost = ((input - cached) * rates.input + cached * rates.cached_input + cacheWrite * (rates.cache_write_input ?? 0) + output * rates.output) / 1e6;
   return { input_tokens: input, output_tokens: output, cached_input_tokens: cached, cache_write_input_tokens: cacheWrite, cost_usd: cost };
 }
+
+// Net effect of provider-native prompt caching on this one call, in USD —
+// separate from priceResponse()'s total cost so the customer-facing savings
+// breakdown can show "prompt caching" as its own line item rather than
+// folding it into routing/cache savings. A cache *write* costs more than
+// plain input (a real, temporary cost), so this can be negative on the call
+// that creates a cache entry and positive on later calls that read it — that
+// asymmetry is real and should be shown, not hidden. Returns null (not 0)
+// when the rate needed to compute it isn't configured, matching this
+// module's fail-closed convention: unknown is never displayed as zero.
+export function promptCacheSavings(provider, raw, rates) {
+  const u = raw?.usage;
+  if (provider === "openai") {
+    const cached = u?.prompt_tokens_details?.cached_tokens ?? 0;
+    if (!Number.isFinite(rates?.cached_input) || !Number.isFinite(rates?.input)) return null;
+    return (cached * (rates.input - rates.cached_input)) / 1e6;
+  }
+  if (provider === "anthropic") {
+    const cached = u?.cache_read_input_tokens ?? 0;
+    const written = u?.cache_creation_input_tokens ?? 0;
+    if (![rates?.cached_input, rates?.cache_write_input, rates?.input].every(Number.isFinite)) return null;
+    return (cached * (rates.input - rates.cached_input) - written * (rates.cache_write_input - rates.input)) / 1e6;
+  }
+  return null;
+}

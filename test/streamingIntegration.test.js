@@ -168,6 +168,12 @@ for (const provider of ["openai", "anthropic"]) {
     assert.equal(recorded.length, 1);
     assert.ok(Math.abs(recorded[0].financials.provider_spend_usd - (provider === "anthropic" ? 0.000018 : 0.000016)) < 1e-12);
     assert.notEqual(recorded[0].financials.provider_spend_usd, null);
+    // No routing rule matched (route == customer default) so routing_usd is 0.
+    // Anthropic's fixture usage carries a static cache_read_input_tokens: 4,
+    // so its prompt-cache line is nonzero even without a second real call.
+    assert.equal(recorded[0].savings_breakdown.cache_usd, 0);
+    assert.equal(recorded[0].savings_breakdown.routing_usd, 0);
+    assert.ok(Math.abs(recorded[0].savings_breakdown.prompt_cache_usd - (provider === "anthropic" ? 0.000002 : 0)) < 1e-12);
     const cached = events(await (await f.call()).text());
     assert.equal(cached.length, 1);
     assert.equal(cached[0].rw_meta.cache_hit, true);

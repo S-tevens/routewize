@@ -19,6 +19,14 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
   const requests = events.filter((e) => e && inRange(e.timestamp) && (e.customer_sha256 ? e.customer_sha256 === tenant : e.customer === customer.name));
   const known = requests.filter((e) => money(e.financials?.provider_spend_usd) && e.financials.provider_spend_usd >= 0);
   const saved = requests.filter((e) => money(e.estimated_savings));
+  // Per-mechanism breakdown of the blended cost_saved_estimate_usd above.
+  // Only requests logged after this field was introduced carry it — older
+  // rows are excluded from the breakdown (not counted as zero) rather than
+  // silently understating one bucket.
+  const withBreakdown = requests.filter((e) => e.savings_breakdown);
+  const cacheSavingsSum = withBreakdown.reduce((n, e) => n + (money(e.savings_breakdown.cache_usd) ? e.savings_breakdown.cache_usd : 0), 0);
+  const routingSavingsSum = withBreakdown.reduce((n, e) => n + (money(e.savings_breakdown.routing_usd) ? e.savings_breakdown.routing_usd : 0), 0);
+  const promptCachePriced = withBreakdown.filter((e) => money(e.savings_breakdown.prompt_cache_usd));
   // Match current API-key identity; never merge receipts by display name.
   const seen = new Set();
   const runs = receipts.filter((r) => {
@@ -50,6 +58,13 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
     known_provider_spend_usd: known.length ? known.reduce((n, e) => n + e.financials.provider_spend_usd, 0) : null,
     priced_requests: known.length, unpriced_requests: requests.length - known.length,
     cost_saved_estimate_usd: saved.length ? saved.reduce((n, e) => n + e.estimated_savings, 0) : null,
+    cost_saved_breakdown_usd: withBreakdown.length ? {
+      cache_usd: cacheSavingsSum,
+      routing_usd: routingSavingsSum,
+      prompt_cache_usd: promptCachePriced.length ? promptCachePriced.reduce((n, e) => n + e.savings_breakdown.prompt_cache_usd, 0) : null,
+    } : null,
+    breakdown_priced_requests: withBreakdown.length,
+    prompt_cache_priced_requests: promptCachePriced.length,
     unverified_historical_requests: requests.filter((e) => !e.financials).length,
     potential_savings_usd: qualified.length ? potential : null,
     potential_reduction_pct: qualifiedBaseline > 0 ? potential / qualifiedBaseline * 100 : null,
