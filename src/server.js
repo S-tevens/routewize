@@ -11,8 +11,9 @@ import { financialOverview } from "./logging/financialOverview.js";
 import { priceResponse, validateRates, promptCacheSavings } from "./evaluation/cost.js";
 
 import { authMiddleware } from "./middleware/auth.js";
+import { adminAuth } from "./middleware/adminAuth.js";
 import { UsageGuard } from "./middleware/usageGuard.js";
-import { watchCustomersConfig } from "./config/loadConfig.js";
+import { watchCustomersConfig, loadCustomers } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
 import { selectRoute } from "./router/rules.js";
@@ -54,6 +55,17 @@ const app = express();
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// Deliberately not part of the express.static(public) mount above -- the
+// admin page lives in its own directory, served by its own explicit routes,
+// so it shares no static mount, directory listing, or link path with
+// anything a customer's browser ever loads. The page shell is unauthenticated
+// (same pattern as the customer dashboard: pages are public shells, the API
+// underneath is the real gate) but is never linked from customer-facing HTML
+// and requires ADMIN_TOKEN to show any actual data.
+const ADMIN_DIR = path.join(__dirname, "..", "admin");
+app.get("/admin", (req, res) => res.sendFile(path.join(ADMIN_DIR, "admin.html")));
+app.get("/admin/admin.js", (req, res) => res.sendFile(path.join(ADMIN_DIR, "admin.js")));
+
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 app.use("/v1/evaluations", authMiddleware(CONFIG_PATH), evaluationRouter());
 
@@ -65,6 +77,38 @@ app.get("/api/financial-overview", authMiddleware(CONFIG_PATH), (req, res) => {
   const days = Number(req.query.days ?? 14);
   if (![0, 7, 14, 30].includes(days)) return res.status(400).json({ error: { message: "days must be 0, 7, 14 or 30" } });
   res.json(financialOverview(req.customer, days));
+});
+
+// Admin-only, cross-customer view. Namespaced under /admin/api (never
+// /api) and gated by adminAuth() -- a wholly separate credential from any
+// customer's api_key, checked with no shared code path (see adminAuth.js).
+// No customer-facing page links here; nothing in this codebase points a
+// customer at this route. Never returns prompt/response content -- there
+// isn't any to return, since nothing in the logging path writes it.
+app.get("/admin/api/overview", adminAuth(), (req, res) => {
+  const days = Number(req.query.days ?? 14);
+  if (![0, 7, 14, 30].includes(days)) return res.status(400).json({ error: { message: "days must be 0, 7, 14 or 30" } });
+  const { customers } = loadCustomers(CONFIG_PATH);
+  const perCustomer = customers.map((customer) => {
+    const overview = financialOverview(customer, days);
+    return {
+      name: customer.name,
+      customer_sha256: createHash("sha256").update(customer.api_key).digest("hex"),
+      request_count: overview.request_count,
+      provider_spend_usd: overview.provider_spend_usd,
+      known_provider_spend_usd: overview.known_provider_spend_usd,
+      unpriced_requests: overview.unpriced_requests,
+      cost_saved_estimate_usd: overview.cost_saved_estimate_usd,
+      cost_saved_breakdown_usd: overview.cost_saved_breakdown_usd,
+      live_priced_requests: overview.live_priced_requests,
+    };
+  });
+  const totals = perCustomer.reduce((acc, c) => ({
+    request_count: acc.request_count + c.request_count,
+    known_provider_spend_usd: acc.known_provider_spend_usd + (c.known_provider_spend_usd ?? 0),
+    cost_saved_estimate_usd: acc.cost_saved_estimate_usd + (c.cost_saved_estimate_usd ?? 0),
+  }), { request_count: 0, known_provider_spend_usd: 0, cost_saved_estimate_usd: 0 });
+  res.json({ days, customer_count: perCustomer.length, totals, customers: perCustomer });
 });
 
 app.post("/v1/optimize", authMiddleware(CONFIG_PATH), (req, res) => {
