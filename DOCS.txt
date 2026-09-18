@@ -1,0 +1,411 @@
+ROUTEWIZE — SOFTWARE DOCUMENTATION
+=============================================================
+Reference documentation for integrating with and operating the
+routewize proxy. For business/architecture context see CONTEXT.md
+and SYSTEM_DESIGN.md; for what to build next see GAMEPLAN.md. This
+file covers only what the software does and how to talk to it.
+
+Last updated: 2026-09-19
+
+
+TABLE OF CONTENTS
+-------------------------------------------------------------
+1.  What routewize is
+2.  Quick start
+3.  Authentication
+4.  Endpoint reference
+    4.1  GET  /healthz
+    4.2  POST /v1/chat/completions
+    4.3  POST /v1/optimize
+    4.4  GET  /v1/evaluations/config
+    4.5  POST /v1/evaluations
+    4.6  GET  /api/stats
+    4.7  GET  /api/financial-overview
+    4.8  Admin endpoints (internal/operator only)
+5.  Response fields explained (rw_meta, usage, financials)
+6.  Streaming (Server-Sent Events)
+7.  Caching behavior
+8.  Routing behavior
+9.  Provider-native prompt caching (Anthropic)
+10. Rate limits and spend caps
+11. Error format
+12. Configuration reference (customers.yaml)
+13. Environment variables
+14. Glossary
+
+
+1. WHAT ROUTEWIZE IS
+-------------------------------------------------------------
+routewize is a drop-in, OpenAI-compatible proxy for OpenAI and
+Anthropic chat completions. Point your existing OpenAI/Anthropic
+client's base URL at a running routewize instance instead of the
+provider directly; the request/response shape stays OpenAI-style
+regardless of which provider actually serves it.
+
+It does four things to reduce cost, none of which require any
+change to your application code beyond the base URL:
+
+  - Caches semantically similar requests so a near-duplicate never
+    triggers a second billable call to a provider.
+  - Routes requests to a cheaper model according to rules you
+    configure (never by automatic judgment of answer quality).
+  - Enables provider-native prompt caching on Anthropic requests.
+  - Compresses and selects reference context under a token budget,
+    when you opt in per-request or per-customer.
+
+
+2. QUICK START
+-------------------------------------------------------------
+  1. Copy src/config/customers.example.yaml to customers.yaml and
+     fill in a real api_key (your customer's key for THIS service)
+     and provider_keys (their own OpenAI/Anthropic keys).
+  2. Copy .env.example to .env and fill in any ${ENV_VAR_NAME}
+     placeholders your customers.yaml references.
+  3. npm install && npm start
+  4. Point your application's OpenAI/Anthropic client base URL at
+     this server instead of api.openai.com / api.anthropic.com.
+     Send your requests with:
+       Authorization: Bearer <the customer's routewize api_key>
+     — not your OpenAI/Anthropic key. routewize holds the real
+     provider key server-side and uses it on your behalf.
+
+
+3. AUTHENTICATION
+-------------------------------------------------------------
+Every customer-facing endpoint (everything under /v1/, /api/)
+requires:
+
+    Authorization: Bearer <routewize api_key>
+
+This is the key issued to a customer for THIS service — it is
+never the customer's own OpenAI/Anthropic key. A missing or
+unrecognized key returns 401 with an "authentication_error" body
+(see section 11).
+
+The admin endpoints (section 4.8) use a completely separate
+credential (ADMIN_TOKEN) and share no authentication code with the
+customer-facing endpoints above. A customer's api_key will never
+work on an admin endpoint, and ADMIN_TOKEN will never work on a
+customer endpoint.
+
+
+4. ENDPOINT REFERENCE
+-------------------------------------------------------------
+
+4.1  GET /healthz
+     No authentication required.
+     Response: { "ok": true }
+     Use for load-balancer/uptime checks.
+
+4.2  POST /v1/chat/completions
+     Authenticated. The core endpoint — OpenAI-compatible shape in,
+     OpenAI-compatible shape out, regardless of which provider
+     actually serves the request.
+
+     Request body:
+       messages        (required) array of {role, content}
+       model           (optional) requested model; informational —
+                       actual model used is decided by routing
+       temperature     (optional)
+       max_tokens      (optional)
+       stream          (optional, boolean) enable SSE streaming —
+                       see section 6
+       rw_optimization (optional) same shape as /v1/optimize's body,
+                       applied to this request's messages before
+                       caching/routing/sending
+       force_flagship  (optional, boolean) bypass caching and
+                       routing, always use the customer's default
+                       model. Equivalent header:
+                         x-force-model: flagship
+
+     Non-streaming response: a standard OpenAI chat.completion
+     object, plus an rw_meta field (see section 5).
+
+     Errors:
+       400  missing/invalid messages, or tools/response_format sent
+            (not supported by this endpoint)
+       429  rate limit exceeded (Retry-After header set), or daily
+            spend cap reached
+       500  customer has no provider key configured for the
+            resolved route's provider
+       502  the upstream provider call failed
+
+4.3  POST /v1/optimize
+     Authenticated. Preview context compression/selection WITHOUT
+     making a model call or writing any request log entry.
+
+     Request body: { messages, rw_optimization }
+     rw_optimization fields:
+       compression        (boolean) dedupe repeated paragraphs
+       selection          (boolean) rank+drop reference documents by
+                          lexical overlap with the latest question
+       max_context_tokens (number) budget for selection
+       context            array of { id, text, protected } reference
+                          documents. protected: true documents are
+                          never dropped or altered regardless of
+                          budget.
+
+     Response: { messages, metrics } — metrics includes token
+     counts before/after, which document ids were selected/dropped,
+     and whether the token budget was exceeded (protected content
+     is always retained even then).
+
+4.4  GET /v1/evaluations/config
+     Authenticated. Checks whether the "Savings proof" evaluation
+     feature is usable for this customer (real provider keys +
+     confirmed evaluation.pricing rates configured).
+     Response: { ready, reason, default_model, provider, pricing,
+                 max_cases, max_calls_per_case }
+
+4.5  POST /v1/evaluations
+     Authenticated. Runs 1-3 real, PAID test cases comparing the
+     customer's baseline configuration against an optimized/routed
+     alternative, to produce provable (not simulated) savings
+     numbers. Requires:
+       Header:  Idempotency-Key: <16-100 chars, letters/digits/-/_>
+       Body:    { confirm_paid_calls: true, overhead_usd_per_request,
+                  use_routing, max_tokens, cases: [...] }
+     Each case needs 1-20 expected_contains phrases and a non-empty
+     user message. This endpoint makes real, billable provider
+     calls — confirm_paid_calls: true is mandatory and is not a
+     formality. See README.md's "Context optimization" section for
+     the full request/response shape and accounting rules.
+
+4.6  GET /api/stats
+     Authenticated. Returns this customer's own usage stats: daily
+     rollups and the most recent 25 requests. Scoped strictly to
+     the authenticated customer — there is no way to see another
+     customer's data through this endpoint.
+
+4.7  GET /api/financial-overview?days=7|14|30|0
+     Authenticated. days=0 means all time. Returns:
+       - provider_spend_usd / known_provider_spend_usd (real,
+         priced provider usage; null when pricing is unavailable —
+         never assumed to be zero)
+       - cost_saved_estimate_usd (blended cache+routing+prompt-cache
+         estimate) and cost_saved_breakdown_usd (the same total
+         split into cache_usd / routing_usd / prompt_cache_usd)
+       - potential_savings_usd / comparison_daily (from paid
+         Savings-proof evaluations, not live traffic)
+       - live_comparison_daily (baseline-vs-actual for real gateway
+         traffic, by day — empty until real traffic exists)
+     See section 5 for what each cost field actually means.
+
+4.8  ADMIN ENDPOINTS (internal/operator only — not part of the
+     customer-facing API, do not document or link these for
+     customers)
+     GET  /admin              — static admin page (no auth on the
+                                page shell itself; see below)
+     GET  /admin/admin.js     — its script
+     GET  /admin/api/overview?days=7|14|30|0
+                              — cross-customer totals and a
+                                per-customer breakdown. Requires:
+                                  Authorization: Bearer <ADMIN_TOKEN>
+                                ADMIN_TOKEN is a separate secret set
+                                via environment variable, never a
+                                customer's api_key, and never stored
+                                in customers.yaml. If ADMIN_TOKEN is
+                                unset, this endpoint refuses every
+                                request (503) rather than defaulting
+                                open.
+
+
+5. RESPONSE FIELDS EXPLAINED
+-------------------------------------------------------------
+rw_meta (attached to every /v1/chat/completions response, and to
+the final SSE chunk when streaming):
+    cache_hit               boolean — was this served from cache
+    matched_rule             name of the routing rule that matched,
+                             or null if the default model was used
+    estimated_savings_usd   this request's estimated savings
+                             (cache + routing combined)
+    optimization            metrics from context compression/
+                             selection, if rw_optimization was sent
+
+usage: standard prompt_tokens / completion_tokens / total_tokens.
+
+financials (internal log field, not returned to the customer in
+the live response, but visible via /api/financial-overview):
+    provider_spend_usd      real cost computed from the provider's
+                             own reported token usage at YOUR
+                             confirmed rates (customer.evaluation.
+                             pricing). null when no rate is
+                             configured for that model — never
+                             assumed to be zero or free.
+
+savings_breakdown (per request, aggregated in financial-overview):
+    cache_usd               savings from serving a cache hit
+    routing_usd             savings from routing to a cheaper model
+    prompt_cache_usd        net effect of provider-native prompt
+                             caching (can be NEGATIVE on the call
+                             that writes a new cache entry — that is
+                             a real, temporary cost, not a bug)
+
+
+6. STREAMING (SERVER-SENT EVENTS)
+-------------------------------------------------------------
+Set stream: true on /v1/chat/completions. Response is
+text/event-stream, OpenAI chat.completion.chunk shaped, ending with
+"data: [DONE]".
+
+  - Cache hit + streaming: the full cached answer arrives as a
+    SINGLE chunk with finish_reason: "stop" and rw_meta attached —
+    not a fake token-by-token replay, just delivered faster.
+  - Cache miss + streaming: real incremental chunks are forwarded
+    as the provider produces them. The final chunk carries usage
+    and rw_meta.
+  - Failure BEFORE the first chunk is received (e.g. bad provider
+    key): a clean 502 JSON error, same shape as the non-streaming
+    error path — NOT a broken SSE stream.
+  - Failure AFTER streaming has started: reported as an in-stream
+    "data: {\"error\": {...}}" event followed by [DONE], since the
+    200/SSE headers are already committed by that point and cannot
+    be changed to an error status.
+
+
+7. CACHING BEHAVIOR
+-------------------------------------------------------------
+Enabled per customer via cache.enabled in customers.yaml. When
+enabled:
+  - Each request's (optimized) message content is embedded and
+    compared via cosine similarity against that customer's other
+    cached entries.
+  - A hit above cache.similarity_threshold (default 0.92) returns
+    the cached response with zero new provider spend.
+  - Cache entries are namespaced per (customer, requested model,
+    temperature, max_tokens, resolved route) — a hit can never
+    reuse an answer generated under different settings, even if the
+    prompt text is identical.
+  - Entries expire after cache.ttl_seconds (default 86400 = 24h)
+    and are held only in server memory — never written to disk,
+    and lost on restart.
+  - force_flagship / x-force-model: flagship bypasses the cache
+    entirely for that request.
+
+
+8. ROUTING BEHAVIOR
+-------------------------------------------------------------
+Configured per customer under routing.rules in customers.yaml.
+Rules are evaluated top to bottom; the first match wins. A rule
+matches on:
+  - keywords    any of these strings appearing in the prompt
+                (case-insensitive)
+  - max_prompt_tokens
+                only match if the (estimated) prompt is under this
+                token count
+Anything that matches no rule falls through to the customer's
+default model — never a silent downgrade, and never an automatic
+judgment of "this looks like a simple question." Routing is
+deterministic and fully customer-controlled by design.
+
+
+9. PROVIDER-NATIVE PROMPT CACHING (ANTHROPIC)
+-------------------------------------------------------------
+Every Anthropic request automatically marks its system prompt as a
+cache_control breakpoint. No configuration needed — Anthropic
+silently skips caching a system prompt under its own per-model
+minimum length, with no error and no cost penalty, so this is safe
+to always attempt.
+  - The first call with a given system prompt pays a cache WRITE
+    premium (cache_creation_input_tokens).
+  - Subsequent calls within the cache's TTL reusing the same system
+    text pay a discounted cache READ rate (cache_read_input_tokens)
+    instead of full price.
+To see this reflected in cost accounting, configure both
+cached_input and cache_write_input rates under this customer's
+evaluation.pricing for the Anthropic model in use — see section 12.
+
+OpenAI's prompt caching is fully automatic on OpenAI's side for
+prompts over roughly 1,024 tokens. No request changes are made by
+routewize; usage.prompt_tokens_details.cached_tokens from OpenAI's
+own response is read directly.
+
+
+10. RATE LIMITS AND SPEND CAPS
+-------------------------------------------------------------
+Configured per customer under rate_limit in customers.yaml:
+  requests_per_minute    fixed 60-second window; 0 disables the
+                         check for that customer; omit to use the
+                         server-wide default (120/min)
+  max_daily_spend_usd    cumulative real provider spend, UTC
+                         calendar day; omit for no cap. Cache hits
+                         are always free and never count against
+                         this cap — only real provider calls do.
+Exceeding either returns 429. A rate-limit response includes a
+Retry-After header (seconds).
+
+
+11. ERROR FORMAT
+-------------------------------------------------------------
+All errors share this shape:
+  { "error": { "message": "...", "type": "..." } }
+
+Common "type" values:
+  authentication_error   missing/invalid Authorization header
+  invalid_request_error  malformed body (e.g. missing messages)
+  rate_limit_error       requests_per_minute exceeded
+  spend_cap_exceeded     max_daily_spend_usd reached
+  config_error           customer has no provider key for the
+                         resolved route
+  upstream_error         the provider call itself failed
+  admin_not_configured   ADMIN_TOKEN is unset on this server
+
+
+12. CONFIGURATION REFERENCE (customers.yaml)
+-------------------------------------------------------------
+See src/config/customers.example.yaml for a fully-commented
+example. Top-level shape: a list under "customers:", each entry:
+
+  api_key           this customer's routewize credential
+  name              display name, shown in stats/dashboard/admin
+  provider_keys     { openai, anthropic } — the customer's own
+                    provider credentials. Supports ${ENV_VAR_NAME}
+                    substitution so real secrets live in the
+                    environment, not this file.
+  default           { provider, model } — used when no routing rule
+                    matches, and when force_flagship is set
+  rate_limit        see section 10
+  cache             { enabled, similarity_threshold, ttl_seconds }
+  routing           { rules: [ { name, match: {keywords,
+                    max_prompt_tokens}, route_to: {provider,
+                    model} } ] }
+  evaluation        { enabled, pricing: { "<provider>/<model>":
+                    { input, output, cached_input,
+                    cache_write_input (Anthropic only), source,
+                    as_of } } } — required for real cost accounting
+                    and the Savings-proof feature; never guessed
+                    from a fallback table.
+  optimization      default compression/selection/max_context_tokens
+                    settings, overridable per-request
+
+The file hot-reloads on save — no server restart needed. If an
+edit fails to parse, the previous good configuration stays active
+and the error is logged; a typo mid-edit never takes the whole
+proxy down.
+
+
+13. ENVIRONMENT VARIABLES
+-------------------------------------------------------------
+See .env.example for the full, commented list. Notable ones:
+  PORT                    default 8787
+  CUSTOMERS_CONFIG        path to customers.yaml
+  EMBEDDING_PROVIDER      "openai" (real) or "mock" (deterministic,
+                          offline, zero cost — for testing only)
+  PRICING_SOURCE          set to "static" to skip the live
+                          tokenscost.com pricing fetch at startup
+  ADMIN_TOKEN             see section 4.8 — unset disables all
+                          admin endpoints (fails closed)
+
+
+14. GLOSSARY
+-------------------------------------------------------------
+Customer         the account holding a routewize api_key and its
+                 own configured provider keys/rules
+Provider         OpenAI or Anthropic — who actually serves the
+                 model call
+Route            the (provider, model) pair a request resolves to,
+                 after routing rules are evaluated
+Cache hit        a request served from the semantic cache with zero
+                 new provider spend
+rw_meta          the routewize-specific metadata object attached to
+                 every chat.completions response
