@@ -152,7 +152,6 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
 
   let optimized;
   try {
-    if (req.body.tools || req.body.response_format) throw new Error("tools and response_format are not supported by this endpoint yet");
     optimized = optimizeContext(messages, req.body.rw_optimization, customer.optimization);
   } catch (err) {
     return res.status(400).json({ error: { message: err.message, type: "invalid_request_error" } });
@@ -357,10 +356,40 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
   const generator = route.provider === "anthropic" ? streamAnthropic(callArgs, resultSink) : streamOpenAI(callArgs, resultSink);
   const iterator = generator[Symbol.asyncIterator]();
 
+  let providerCallStarted = false;
+  let finalLogged = false;
+
+  // A client disconnect after a provider call has actually started, but
+  // before its usage-bearing final chunk was processed, does not mean the
+  // provider generated (and billed) zero tokens -- cancelling the
+  // connection here doesn't retroactively make already-produced output
+  // free. Recording nothing would make that spend invisible to every log,
+  // dashboard, and daily spend cap. This can't recover the real dollar
+  // amount (only the provider's own billing API could), but it makes the
+  // gap visible and auditable -- provider_spend_usd: null, never a guessed
+  // number -- instead of silent, matching this codebase's fail-closed
+  // convention everywhere else (evaluation/cost.js, financialOverview.js).
+  function logCancelledIfNeeded() {
+    if (!controller.signal.aborted || finalLogged || !providerCallStarted) return;
+    logRequestEvent({
+      customer: customer.name,
+      customer_sha256: createHash("sha256").update(customer.api_key).digest("hex"),
+      financials: { provider_spend_usd: null, source: "cancelled_client_disconnect_unknown_spend" },
+      model_requested: modelRequested ?? customer.default.model,
+      model_used: route.model,
+      cache_hit: false,
+      matched_rule: route.matchedRule,
+      estimated_savings: 0,
+      savings_breakdown: { cache_usd: 0, routing_usd: 0, prompt_cache_usd: null },
+      optimization: optimized.metrics,
+    });
+  }
+
   try {
   if (controller.signal.aborted) return;
   let first;
   try {
+    providerCallStarted = true;
     first = await iterator.next();
   } catch (err) {
     if (controller.signal.aborted) return;
@@ -416,6 +445,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
       cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
     });
+    finalLogged = true;
 
     chunk.rw_meta = { cache_hit: false, matched_rule: route.matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization: optimized.metrics };
     writeSseChunk(res, chunk);
@@ -440,6 +470,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
   } finally {
     res.off("close", onClose);
     await iterator.return?.();
+    logCancelledIfNeeded();
   }
 }
 
