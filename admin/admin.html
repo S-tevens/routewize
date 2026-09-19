@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>routewize — Admin</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0b0f0a; color: #e7ecdf; font: 14px/1.5 -apple-system, Segoe UI, sans-serif; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.hint { color: #8b978a; margin: 0 0 20px; }
+  .row { display: flex; gap: 8px; margin-bottom: 20px; }
+  input, button, select { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid #33402f; background: #12160f; color: inherit; }
+  input { flex: 1; max-width: 420px; }
+  button { background: #cbf24f; color: #0b0f0a; border: none; cursor: pointer; font-weight: 600; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #22281d; }
+  th { color: #8b978a; font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  #status { color: #8b978a; margin: 0 0 12px; }
+  #status.error { color: #f2846f; }
+  .totals { display: flex; gap: 24px; margin: 16px 0; }
+  .totals div strong { display: block; font-size: 20px; }
+  .totals div span { color: #8b978a; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>routewize — Admin overview</h1>
+<p class="hint">Cross-customer view. Not linked from anywhere customer-facing — do not share this URL. Requires ADMIN_TOKEN, a secret separate from any customer's API key.</p>
+<div class="row">
+  <input id="adminToken" type="password" placeholder="Admin token" autocomplete="off" spellcheck="false">
+  <select id="days">
+    <option value="7">Last 7 days</option>
+    <option value="14" selected>Last 14 days</option>
+    <option value="30">Last 30 days</option>
+    <option value="0">All time</option>
+  </select>
+  <button id="loadBtn">Load</button>
+</div>
+<p id="status"></p>
+<div class="totals" id="totals" hidden>
+  <div><strong id="totalCustomers">—</strong><span>Customers</span></div>
+  <div><strong id="totalRequests">—</strong><span>Requests</span></div>
+  <div><strong id="totalSpend">—</strong><span>Known provider spend</span></div>
+  <div><strong id="totalSaved">—</strong><span>Cost saved (estimate)</span></div>
+</div>
+<table id="customerTable" hidden>
+  <thead><tr><th>Customer</th><th>Requests</th><th>Provider spend</th><th>Unpriced</th><th>Cost saved</th></tr></thead>
+  <tbody id="customerRows"></tbody>
+</table>
+<script src="/admin/admin.js"></script>
+</body>
+</html>

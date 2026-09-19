@@ -10,6 +10,9 @@ function clearFinancialOverview() {
   $("costComparison").setAttribute("hidden", "");
   $("comparisonEmpty").hidden = false;
   $("comparisonNote").textContent = "Original vs optimized cost for the same test inputs.";
+  $("liveCostComparison").setAttribute("hidden", "");
+  $("liveComparisonEmpty").hidden = false;
+  $("liveComparisonNote").textContent = "What your default model would have cost vs. what gateway requests actually cost, by day.";
 }
 async function loadFinancialOverview() {
   overviewController?.abort();
@@ -36,15 +39,18 @@ async function loadFinancialOverview() {
     $("evaluationSpendNote").textContent = data.evaluation_spend_incomplete ? "Known portion only; some charges are unknown" : "Both test arms; excludes supplied overhead";
     $("moneyStatus").textContent = `${data.priced_requests} of ${data.request_count} gateway requests priced · ${data.evaluation_count} evaluation reports · UTC date range`;
     $("comparisonNote").textContent = data.compared_pairs ? `${data.compared_pairs} priced test pairs across ${data.comparison_daily.length} days. Lower cost is better.` : "Original vs optimized cost for the same test inputs.";
-    drawCostComparison(data.comparison_daily);
+    drawCostComparison("costComparison", "comparisonEmpty", data.comparison_daily);
+    const liveDaily = data.live_comparison_daily ?? [];
+    $("liveComparisonNote").textContent = data.live_priced_requests ? `${data.live_priced_requests} gateway requests across ${liveDaily.length} days. Lower cost is better.` : "What your default model would have cost vs. what gateway requests actually cost, by day.";
+    drawCostComparison("liveCostComparison", "liveComparisonEmpty", liveDaily);
   } catch (err) {
     if (err.name !== "AbortError") $("moneyStatus").textContent = err.message;
   }
 }
 
-function drawCostComparison(daily) {
-  const svg = $("costComparison"); svg.replaceChildren();
-  svg.toggleAttribute("hidden", !daily.length); $("comparisonEmpty").hidden = !!daily.length;
+function drawCostComparison(svgId, emptyId, daily) {
+  const svg = $(svgId); svg.replaceChildren();
+  svg.toggleAttribute("hidden", !daily.length); $(emptyId).hidden = !!daily.length;
   if (!daily.length) return;
   const ns = "http://www.w3.org/2000/svg";
   const element = (name, attrs, text) => {

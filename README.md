@@ -218,7 +218,13 @@ node scripts/seedDemoLog.js sample-data/llm_api_requests_300.jsonl
 
 This **overwrites** `logs/requests.log` with simulated entries spread across the past week — useful for a demo, but clear it (delete the file) before real traffic starts, so real and simulated numbers don't mix.
 
-Deliberately not built here (still deferred until a real customer asks, per the spec): billing/payments, multi-customer login, and anything beyond what a single API key's own log already contains.
+Deliberately not built here (still deferred until a real customer asks, per the spec): billing/payments, customer self-service account management, and anything beyond what a single API key's own log already contains. (A cross-customer *admin* view exists — see below — but it's a separate, internal-only surface, not a customer-facing login system.)
+
+## Admin overview (internal only — not for customers)
+
+`http://localhost:8787/admin` shows every customer side by side — request counts, provider spend, and cost saved — for whoever runs the server, not for customers. It requires `ADMIN_TOKEN` to be set in the environment (generate one with `openssl rand -hex 32`, put it in `.env`, never in `customers.yaml`); with no `ADMIN_TOKEN` set, the underlying API refuses every request rather than defaulting to open.
+
+This is deliberately isolated from the customer-facing dashboard: separate directory (`admin/`, not `public/`), separate route (`/admin`, not part of the `express.static` mount customers load from), and separate auth middleware (`adminAuth()` in `src/middleware/adminAuth.js`) that shares no code with customer auth — a customer's own API key can never be used here, at any length, by design (see `test/adminAuth.test.js` and `test/admin.test.js`). Nothing in the customer dashboard links to it, and it should stay that way — don't add a link from `dashboard.html` to `/admin`.
 
 ## What's intentionally not built (v1 scope)
 

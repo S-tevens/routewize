@@ -1,0 +1,255 @@
+ROUTEWIZE — TERMS OF SERVICE
+=============================================================
+DRAFT — NOT LEGAL ADVICE. This document has not been reviewed by a
+lawyer. Every field marked [IN BRACKETS] must be completed, and the
+whole document reviewed by qualified counsel in your operating
+jurisdiction, before it is published or relied upon in any customer
+relationship.
+=============================================================
+
+Last updated: [EFFECTIVE DATE]
+Version: 1.0 (draft)
+
+
+1. ACCEPTANCE OF THESE TERMS
+-------------------------------------------------------------
+These Terms of Service ("Terms") are a binding agreement between
+[LEGAL ENTITY NAME] ("routewize," "we," "us," or "our") and the
+person or entity that registers for or uses the routewize service
+("Customer," "you"). By creating an account, configuring the
+service, or sending any request through it, you agree to these
+Terms. If you are agreeing on behalf of an organization, you
+represent that you have authority to bind that organization.
+
+If you do not agree to these Terms, do not use the service.
+
+
+2. WHAT ROUTEWIZE IS
+-------------------------------------------------------------
+routewize is an API proxy that sits between your application and
+your own OpenAI and/or Anthropic accounts. It provides:
+
+  (a) Semantic response caching — detecting near-duplicate requests
+      and serving a prior response instead of making a new,
+      billable call to a Provider.
+  (b) Cost-based model routing — routing requests to a less
+      expensive model according to rules you configure, never by
+      automatic judgment of answer quality.
+  (c) Provider-native prompt caching, where supported by the
+      underlying Provider.
+  (d) Usage and savings reporting, based on request metadata
+      routewize logs about your traffic (see the Privacy Policy for
+      exactly what is and is not recorded).
+
+routewize does not replace your relationship with OpenAI or
+Anthropic (each, a "Provider"). You must hold your own valid
+account and API credentials with each Provider you configure.
+routewize never resells, marks up, or otherwise touches your
+Provider billing relationship — you are billed by the Provider
+directly for whatever usage routewize's routing and caching
+decisions produce.
+
+
+3. ELIGIBILITY AND ACCOUNTS
+-------------------------------------------------------------
+3.1 You must be able to form a binding contract to use the
+    service, and, if registering on behalf of an organization,
+    have authority to do so.
+3.2 You are responsible for maintaining the confidentiality of
+    your routewize API key and for all activity that occurs under
+    your account.
+3.3 You must notify us promptly at [CONTACT EMAIL] if you believe
+    your routewize API key or a Provider key configured with us
+    has been compromised.
+
+
+4. YOUR RESPONSIBILITIES
+-------------------------------------------------------------
+4.1 Provider credentials. You are solely responsible for the
+    validity, scope, and security of the Provider API keys you
+    supply to routewize, and for your own compliance with each
+    Provider's terms of service, usage policies, and rate limits.
+    routewize is not a party to your agreement with any Provider.
+4.2 Acceptable use. You will not use routewize to:
+      - Violate any Provider's usage policies (including their
+        content and safety policies);
+      - Send unlawful, infringing, or abusive content through the
+        service;
+      - Attempt to circumvent rate limits, spend caps, or access
+        controls, including the administrative interfaces of the
+        service;
+      - Reverse engineer, resell, or use the service to build a
+        competing product without our written consent;
+      - Introduce malware or attempt to disrupt the service's
+        availability or integrity.
+4.3 Configuration accuracy. Routing rules, cache settings, and rate
+    limits are configured by you (or on your behalf). routewize is
+    not responsible for outcomes resulting from misconfiguration —
+    for example, a routing rule that sends sensitive requests to a
+    model you did not intend, or a cache TTL set longer than
+    appropriate for your data.
+4.4 End users. If your own application has end users, you remain
+    solely responsible for your relationship with them, including
+    any privacy notices or consents required for their data to
+    pass through a third-party proxy such as routewize.
+
+
+5. FEES AND PAYMENT
+-------------------------------------------------------------
+5.1 Current stage. As of this draft, routewize is offered to pilot
+    customers on a [FREE / TRIAL PERIOD OF N DAYS] basis. No
+    payment is currently collected.
+5.2 Future pricing. [DESCRIBE PRICING MODEL ONCE DECIDED — e.g.
+    flat monthly fee, percentage of measured savings, or
+    usage-based — and how/when Customers will be notified of a
+    transition from a free pilot to a paid plan.] No fee structure
+    will be applied retroactively without prior notice.
+5.3 Provider costs are not routewize's fees. Nothing in these Terms
+    obligates routewize to pay, reimburse, or otherwise cover any
+    amount billed to you directly by a Provider.
+
+
+6. SAVINGS ESTIMATES ARE NOT GUARANTEES
+-------------------------------------------------------------
+Any cost-savings figures, percentages, or projections shown by
+routewize (in the dashboard, in sales materials, or elsewhere) are
+estimates derived from your own traffic and the pricing rates
+configured in your account. They are savings TARGETS, not
+guarantees. Actual results depend on your traffic patterns, the
+accuracy of rates you or we configure, and each Provider's own
+pricing and billing practices, and may differ from any estimate
+shown. routewize does not warrant any specific level of cost
+reduction.
+
+
+7. SERVICE AVAILABILITY
+-------------------------------------------------------------
+7.1 No SLA (current stage). As of this draft, routewize does not
+    provide a formal service-level agreement or uptime guarantee.
+    [Add a specific SLA here once one is offered, e.g. to paying
+    customers.]
+7.2 The service may be modified, interrupted, or discontinued at
+    any time, including for maintenance, and we will make
+    reasonable efforts to notify active Customers of planned
+    downtime where practical.
+7.3 A cache miss or routing failure will, where possible, fall back
+    to a clean error rather than a silent wrong answer; however,
+    routewize cannot guarantee zero downtime or that every request
+    will be served successfully.
+
+
+8. DATA AND PRIVACY
+-------------------------------------------------------------
+Our collection and use of information in connection with the
+service is described in our Privacy Policy [LINK], which is
+incorporated into these Terms by reference. In summary: routewize
+does not persist the content of your prompts or responses to disk;
+a transient, in-memory cache holds recent request/response content
+per-customer for a limited, configurable time window strictly to
+serve cache hits, and is never written to disk. See the Privacy
+Policy for full detail, including what request metadata IS
+retained and why.
+
+
+9. INTELLECTUAL PROPERTY
+-------------------------------------------------------------
+9.1 routewize retains all right, title, and interest in the
+    service itself, including its software, branding, and
+    documentation.
+9.2 You retain all right, title, and interest in your own content
+    (prompts, responses, reference documents) that passes through
+    the service. We claim no ownership over it and, per §6 of the
+    Privacy Policy, do not use it to train any model.
+9.3 You grant us a limited license to process your content solely
+    as necessary to operate the service on your behalf (routing,
+    caching, reporting).
+
+
+10. DISCLAIMER OF WARRANTIES
+-------------------------------------------------------------
+THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT
+WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY,
+INCLUDING WITHOUT LIMITATION WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THAT THE SERVICE
+WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE. WE DO NOT WARRANT THE
+ACCURACY, COMPLETENESS, OR RELIABILITY OF ANY OUTPUT PRODUCED BY A
+PROVIDER'S MODEL, WHETHER OR NOT ROUTED OR CACHED BY ROUTEWIZE.
+
+[This clause and the two below are standard but MUST be reviewed
+and, if needed, adapted by counsel for enforceability in your
+jurisdiction — consumer-protection law in some jurisdictions limits
+how far liability can be disclaimed.]
+
+
+11. LIMITATION OF LIABILITY
+-------------------------------------------------------------
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL ROUTEWIZE
+BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR
+GOODWILL, ARISING FROM YOUR USE OF THE SERVICE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGES. ROUTEWIZE'S TOTAL LIABILITY FOR
+ANY CLAIM ARISING OUT OF OR RELATING TO THESE TERMS OR THE SERVICE
+WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID ROUTEWIZE IN
+THE [THREE (3)] MONTHS PRECEDING THE CLAIM, OR (B) [A NOMINAL FLOOR
+AMOUNT, e.g. $100 — set explicitly, especially relevant while the
+service is offered for free during pilots].
+
+
+12. INDEMNIFICATION
+-------------------------------------------------------------
+You agree to indemnify and hold routewize harmless from any claim,
+loss, or damage (including reasonable legal fees) arising from your
+use of the service in violation of these Terms, your violation of
+any Provider's terms of service, or content you send through the
+service that infringes or violates the rights of a third party.
+
+
+13. TERMINATION
+-------------------------------------------------------------
+13.1 You may stop using the service at any time; routewize is
+     designed with no lock-in — simply point your application's API
+     base URL back to a Provider directly.
+13.2 We may suspend or terminate your access if you materially
+     breach these Terms, including the acceptable-use provisions in
+     §4.2, or if required by law.
+13.3 Upon termination, your Provider keys and account data will be
+     deleted in accordance with the retention terms in our Privacy
+     Policy.
+13.4 Sections 6, 9, 10, 11, and 12 survive termination.
+
+
+14. CHANGES TO THESE TERMS
+-------------------------------------------------------------
+We may update these Terms as the service evolves. Material changes
+will be notified to active Customers at least [N DAYS] before
+taking effect, via [EMAIL / DASHBOARD NOTICE — specify]. Continued
+use of the service after a change takes effect constitutes
+acceptance of the revised Terms.
+
+
+15. GOVERNING LAW AND DISPUTES
+-------------------------------------------------------------
+[STATE GOVERNING LAW AND JURISDICTION/VENUE FOR DISPUTES HERE — this
+requires a decision by the founders, typically the jurisdiction of
+incorporation, and should be finalized with counsel.]
+
+
+16. GENERAL
+-------------------------------------------------------------
+16.1 Entire agreement. These Terms, together with the Privacy
+     Policy, constitute the entire agreement between you and
+     routewize regarding the service.
+16.2 Severability. If any provision of these Terms is found
+     unenforceable, the remaining provisions remain in full effect.
+16.3 No waiver. Our failure to enforce any provision is not a
+     waiver of our right to do so later.
+16.4 Assignment. You may not assign these Terms without our
+     written consent; we may assign them in connection with a
+     merger, acquisition, or sale of assets.
+
+
+17. CONTACT
+-------------------------------------------------------------
+Questions about these Terms can be sent to: [CONTACT EMAIL]
+[Legal entity name and registered address, if required in your
+jurisdiction.]
