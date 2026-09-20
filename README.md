@@ -1,10 +1,58 @@
 # routewise (MVP)
 
-Drop-in proxy for OpenAI/Anthropic chat completions that:
+OpenAI SDK-compatible gateway for non-streaming text chat with OpenAI and Anthropic that:
 1. **Caches** identical effective requests, isolated by customer, conversation, model, routing, and generation settings. The live endpoint uses exact matching to avoid unsafe reuse across similar but different questions.
 2. **Routes** simple requests to a cheaper model using rules *you* configure — no auto quality detection.
 3. **Compresses reference context** by removing duplicate prose paragraphs and excess paragraph whitespace, when explicitly enabled.
 4. **Selects context documents** using lexical relevance to the latest user question within a configurable estimated token budget.
+
+## Connect with your existing OpenAI SDK
+
+Change the base URL and API key in your application's backend. No Routewise SDK is required. The Routewise operator must first configure your customer key and provider credentials (see Setup below); the dashboard does not provision keys or credits. Provider calls are billed to the configured provider accounts.
+
+```javascript
+// npm install openai
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8787/v1",
+  apiKey: process.env.ROUTEWISE_API_KEY,
+});
+
+const answer = await client.chat.completions.create({
+  model: "routewise/auto",
+  messages: [{ role: "user", content: "Classify: I love this product!" }],
+  max_tokens: 200,
+});
+console.log(answer.choices[0].message.content);
+```
+
+Python uses the same endpoint:
+
+```python
+# pip install openai
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8787/v1",
+    api_key=os.environ["ROUTEWISE_API_KEY"],
+)
+answer = client.chat.completions.create(
+    model="routewise/auto",
+    messages=[{"role": "user", "content": "Classify: I love this product!"}],
+    max_tokens=200,
+)
+print(answer.choices[0].message.content)
+```
+
+Use the actual server origin: the current local preview on port 8788 uses `http://localhost:8788/v1`. `localhost` only works from the machine running Routewise; a deployed app needs a reachable Routewise server, with HTTPS for remote access. Keep credentials in server environment variables, not client-side code.
+
+- `routewise/auto` applies your configured cheaper-model routing rules, falling back to the default. Omitted `model` preserves this legacy behavior.
+- Explicit IDs, such as `openai/gpt-4o`, select that configured model without routing changes. Bare IDs such as `gpt-4o` also work when unambiguous. **Behavior change:** previous versions ignored the requested model; callers wanting rule-based routing should now send `routewise/auto`.
+- `await client.models.list()` calls authenticated `GET /v1/models` and lists models from your customer's default, routing targets, and optional `models: [{provider, model}]` configuration. This is a configured allowlist, not a live provider availability check. Unknown models return 404 instead of silently falling back.
+- Exact response caching follows customer configuration for both explicit and automatic models. Changing the address does not automatically shorten your conversation. Add `rw_optimization` reference documents to opt into compression/selection; Python sends that custom field through `extra_body={"rw_optimization": {...}}`.
+- Supported input: text `system`, `user`, and `assistant` messages with `role`/`content`; `model`, `temperature`, `max_tokens`, `stream: false`, and `n: 1`. Other options return 400 instead of being silently ignored. Streaming, tools, images, structured output, and the Responses API are not supported. This is compatibility with this subset of Chat Completions, not the entire OpenAI API.
 
 ## Context optimization
 
@@ -84,7 +132,7 @@ Responses expose before/after estimates and document counts under `rw_meta.optim
 
 The live endpoint currently supports non-streaming text messages only. Streaming, tool calls and response formats are rejected explicitly. Cache capacity is 1,000 entries, in memory, with TTL; it does not survive restart or synchronize between instances. These features are a tested implementation baseline, not a claim of full production readiness.
 
-Point your app at this proxy instead of calling OpenAI/Anthropic directly. Everything else about your app stays the same.
+Point supported text Chat Completions requests at this gateway. Anthropic models also use the OpenAI request shape here, rather than the native Anthropic SDK.
 
 ## Setup
 
@@ -107,9 +155,9 @@ Same shape as the OpenAI chat completions API, just pointed at this server:
 
 ```bash
 curl http://localhost:8787/v1/chat/completions \
-  -H "Authorization: Bearer rw_live_demo_4a21" \
+  -H "Authorization: Bearer $ROUTEWISE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "Classify: I love this product!"}]}'
+  -d '{"model": "routewise/auto", "messages": [{"role": "user", "content": "Classify: I love this product!"}]}'
 ```
 
 The response includes an `rw_meta` field showing whether it was a cache hit, which routing rule fired, and the estimated savings for that request.

@@ -1,6 +1,9 @@
-const viewNames = ["playground", "usage", "guide", "proof"];
+const viewNames = ["playground", "usage", "guide", "proof", "models"];
+const viewLabels = { playground: "Playground", usage: "Overview", guide: "Connect app", proof: "Savings proof", models: "Models" };
 function showView(name) {
-  if (!viewNames.includes(name)) name = "playground";
+  if (!viewNames.includes(name)) name = "usage";
+  $("currentViewLabel").textContent = viewLabels[name];
+  document.title = `${viewLabels[name]} · Routewise`;
   for (const view of viewNames) document.getElementById(`${view}View`).hidden = view !== name;
   document.querySelectorAll("[data-view]").forEach((button) => {
     const active = button.dataset.view === name;
@@ -10,10 +13,12 @@ function showView(name) {
   if (name === "usage" && allDaily.length) renderForPeriod();
   if (name === "proof") window.dispatchEvent(new Event("proof-view"));
   if (name === "usage") window.dispatchEvent(new Event("overview-view"));
+  if (name === "guide") window.dispatchEvent(new Event("guide-view"));
+  if (name === "models") window.dispatchEvent(new Event("models-view"));
 }
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => {
-  location.hash = button.dataset.view;
-  showView(button.dataset.view);
+  if (location.hash === `#${button.dataset.view}`) showView(button.dataset.view);
+  else location.hash = button.dataset.view;
 }));
 window.addEventListener("hashchange", () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
@@ -36,6 +41,7 @@ $("optimizeForm").addEventListener("submit", async (event) => {
   if (!realKey) {
     error.textContent = "Enter your Routewise API key in the header first, then try again.";
     error.hidden = false;
+    $("connectionMenu").open = true;
     $("apiKey").focus();
     return;
   }
@@ -92,4 +98,3 @@ $("copyResult").addEventListener("click", async () => {
   catch { $("copyResult").textContent = "Select text to copy"; }
   setTimeout(() => { $("copyResult").textContent = "Copy"; }, 2500);
 });
-$("integrationCode").textContent = `curl ${location.origin}/v1/chat/completions \\\n  -H 'Authorization: Bearer YOUR_ROUTEWISE_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '${JSON.stringify({ messages: [{ role: "user", content: "What is the refund policy?" }], rw_optimization: { compression: true, selection: true, max_context_tokens: 2000, context: [{ id: "refund-policy", text: "Refunds are available within 30 days." }] } }, null, 2)}'`;

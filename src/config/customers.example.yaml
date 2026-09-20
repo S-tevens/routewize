@@ -24,17 +24,24 @@ customers:
       openai: "sk-REPLACE_ME"
       anthropic: "sk-ant-REPLACE_ME"
 
-    # Used when no routing rule matches, and when a request forces "flagship".
+    # Used by routewise/auto when no rule matches, or when forcing "flagship".
     default:
       provider: openai
       model: gpt-4o
+
+    # Optional additional models allowed for explicit selection.
+    # Default and routing target models are already included in GET /v1/models.
+    models: []
+    # - provider: openai
+    #   model: <provider-model-id>
 
     cache:
       enabled: true
       similarity_threshold: 0.92
       ttl_seconds: 86400 # 24h
 
-    # Rules are evaluated top to bottom; first match wins. Anything that
+    # For model: routewise/auto (or omitted model), first matching rule wins.
+    # An explicit model bypasses rules and stays on that model. Anything that
     # doesn't match falls through to `default` above (no silent downgrade).
     routing:
       rules:

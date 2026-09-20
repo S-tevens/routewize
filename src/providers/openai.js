@@ -12,6 +12,7 @@ export async function callOpenAI({ apiKey, model, messages, temperature, max_tok
 
   return {
     content: completion.choices[0].message.content,
+    finish_reason: completion.choices[0].finish_reason,
     usage: {
       prompt_tokens: completion.usage?.prompt_tokens ?? 0,
       completion_tokens: completion.usage?.completion_tokens ?? 0,

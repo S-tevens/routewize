@@ -6,40 +6,27 @@
 <title>routewise — Savings dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.5 6 L7 9 L17 15 L6.5 18' fill='none' stroke='%23cbf24f' stroke-width='4.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/reference-ui.css">
+<link rel="stylesheet" href="/dashboard-ui.css">
 </head>
 <body>
 <div class="app-shell">
 
+<a class="skip-link" href="#mainContent">Skip to content</a>
+<aside class="sidebar">
+  <a class="brand brand-logo" href="#usage" aria-label="Workspace overview"><img src="/routewize-logo.png" width="2172" height="724" alt="Routewize"></a>
+  <div class="workspace-label"><span class="workspace-avatar">R</span><div>Your workspace<small>AI cost optimization</small></div></div>
+  <div class="nav-label">WORKSPACE</div>
+  <nav class="workspace-nav" aria-label="Workspace"><button data-view="usage" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg><span>Overview</span></button><button data-view="models" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5 M3 12l9 5 9-5 M3 16l9 5 9-5"/></svg><span>Models</span></button><button data-view="playground" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 2 7-7 2 7 2-2 7 6-7 7-2-7-2-6-7"/></svg><span>Playground</span></button><button data-view="proof" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5z M8 8h8 M8 12h8 m-8 4 2 2 5-4"/></svg><span>Savings proof</span></button><button data-view="guide" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5 m8-10 5 5-5 5 m-3-13-2 20"/></svg><span>Connect app</span></button></nav>
+  <div class="sidebar-bottom"><div class="sidebar-note"><span class="mini-route" aria-hidden="true">↘</span><strong>Less spend.<br>More possibility.</strong><p>Keep your SDK. Make every request count.</p><a href="#guide">Integration guide <span>↗</span></a></div><span class="sidebar-footnote">OpenAI + Anthropic</span></div>
+</aside>
+<div class="workspace-main">
 <header class="topbar">
-  <a class="brand brand-logo" href="#playground" aria-label="Routewise playground">
-    <img src="/routewise-logo.png" width="1600" height="548" alt="Routewise">
-  </a>
-
-  <div class="toolbar">
-    <div class="connection" aria-live="polite">
-      <span class="dot" id="statusDot"></span>
-      <span id="statusLabel">Not connected</span>
-    </div>
-    <div class="keybox">
-      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewise API key" aria-label="routewise API key">
-      <button id="connectBtn">Connect</button>
-    </div>
-  </div>
+  <div class="breadcrumb">Workspace <span>/</span> <strong id="currentViewLabel">Overview</strong></div>
+  <details class="connection-menu" id="connectionMenu"><summary><span class="dot" id="statusDot"></span><span id="statusLabel" aria-live="polite">Connect API key</span><span aria-hidden="true">⌄</span></summary><div class="connection-popover"><label for="apiKey">Your Routewise API key</label><p>Connect to view your own models and usage.</p><div class="keybox"><input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="Paste your Routewise key" aria-label="Routewise API key"><button id="connectBtn">Connect</button></div><small id="connectionFeedback" role="status">Saved only in this browser. Provider keys stay on the server.</small></div></details>
 </header>
-
-<main class="wrap">
-
-  <nav class="workspace-nav" aria-label="Workspace">
-    <button class="active" data-view="playground" aria-pressed="true">Playground</button>
-    <button data-view="usage" aria-pressed="false">Usage & savings</button>
-    <button data-view="proof" aria-pressed="false">Savings proof</button>
-    <button data-view="guide" aria-pressed="false">Quickstart</button>
-    <span>OpenAI + Anthropic</span>
-  </nav>
-
-  <section id="playgroundView">
-    <div class="workspace-heading"><div><h1>Optimize your context</h1><p>Keep useful information. Send fewer tokens.</p></div><span class="preview-badge">Preview · No model charges</span></div>
+<main class="wrap" id="mainContent" tabindex="-1">
+  <section id="playgroundView" hidden>
+    <div class="workspace-heading"><div><h1>Playground</h1><p>Try context optimization before changing your app.</p></div><span class="preview-badge">Preview · No model charges</span></div>
     <div class="studio">
       <form id="optimizeForm" class="editor-card">
         <div class="card-heading"><h2>Your input</h2><button type="button" id="loadExample" class="text-button">Load example ↗</button></div>
@@ -75,12 +62,23 @@
   </section>
 
   <section id="guideView" hidden>
-    <div class="workspace-heading"><div><h1>Connect your application</h1><p>Bring your existing Routewise key and connect your application.</p></div></div>
-    <div class="guide-card"><h2>1. Connect your key</h2><p>Enter your Routewise customer key in the header. Your provider keys stay in the server configuration.</p><h2>2. Preview your context</h2><p>Use the Playground to inspect compression and document selection without making a paid model call.</p><h2>3. Send an optimized model request</h2><p>Use the chat endpoint with your question and reference documents. Caching and routing follow your customer configuration.</p><pre id="integrationCode"></pre><p class="field-help">Text requests only. Streaming and tool calls are not supported yet. The preview endpoint does not add entries to usage history.</p></div>
+    <div class="workspace-heading"><div><h1>Connect your app</h1><p>Connect once. Your app sends requests through Routewise automatically.</p></div><span class="preview-badge">OpenAI SDK compatible · Text chat</span></div>
+    <div class="integration-layout">
+      <section class="guide-card integration-steps"><h2>1. Set your address and key</h2><p>Keep your OpenAI SDK. Use this base URL and set <code>ROUTEWISE_API_KEY</code> in your app's server environment.</p><code id="integrationBaseUrl" class="base-url"></code><p class="field-help">Your Routewise key authenticates your app. Your OpenAI or Anthropic key must be configured on the Routewise server before model calls can run. Provider charges use those keys.</p><h2>2. Choose how to route</h2><p><code>routewise/auto</code> applies your configured routing rules. An explicit model stays on that model. Matching repeat requests can use response caching when enabled.</p><h2>3. Read the answer as usual</h2><p>Read <code>choices[0].message.content</code>. Extra savings details appear in <code>rw_meta</code>, and requests appear in Usage &amp; savings.</p><p class="proof-notice">Changing the address alone doesn't compress conversation history. Add reference context below when you want to reduce input tokens.</p></section>
+      <section class="guide-card integration-example" aria-label="Integration example"><div class="card-heading"><h2>Make your first request</h2><button type="button" id="copyIntegration" class="text-button">Copy code</button></div><div class="integration-controls"><label for="integrationLanguage">Language<select id="integrationLanguage"><option value="javascript">JavaScript</option><option value="python">Python</option><option value="curl">cURL</option></select></label><label for="integrationModel">Model<select id="integrationModel"><option value="routewise/auto">routewise/auto</option></select></label></div><p id="integrationModelStatus" class="field-help" role="status">Connect your key to list configured models.</p><pre id="integrationCode" tabindex="0"></pre><p class="field-help">Run this in your application backend. This example makes a paid model call when valid provider keys are configured.</p><p class="field-help">Supports non-streaming text Chat Completions, temperature, and max_tokens. Tools, images, structured output, and the Responses API are not supported yet. Unsupported options return an error.</p></section>
+    </div>
+    <details class="guide-card integration-optional"><summary>Optional: send fewer context tokens</summary><p>Add <code>rw_optimization</code> to the request body with your reference documents. In Python, pass it through <code>extra_body={"rw_optimization": {...}}</code>. Your regular messages remain intact.</p><pre>{"rw_optimization": {
+  "compression": true,
+  "selection": true,
+  "max_context_tokens": 2000,
+  "context": [
+    {"id": "refunds", "text": "Refunds are available within 30 days."}
+  ]
+}}</pre><p class="field-help">Use Playground to preview changes without model charges. Use Savings proof to compare paid answers and costs.</p></details>
   </section>
 
   <section id="proofView" hidden>
-    <div class="workspace-heading"><div><h1>Prove the savings</h1><p>Compare real model calls before changing your application.</p></div></div>
+    <div class="workspace-heading"><div><h1>Savings proof</h1><p>Compare real model calls before changing your application.</p></div></div>
     <div class="studio">
       <form id="proofForm" class="editor-card">
         <div class="card-heading"><h2>Compare your Playground input</h2></div>
@@ -114,38 +112,37 @@
     </div>
   </section>
 
-  <section id="usageView" hidden>
-
-  <div class="page-intro">
-    <div>
-      <div class="eyebrow">LLM cost control</div>
-      <h1>Workspace overview</h1>
-    </div>
-    <p>Provider spend, estimated savings, and evidence from your comparisons.</p>
-  </div>
-
-  <section class="money-overview" aria-label="Costs and savings">
-    <div class="money-heading"><h2>Spend a little wiser.</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
-    <p id="moneyStatus" class="field-help" role="status">Connect your Routewise key to load financial evidence.</p>
-    <div class="money-layout">
-      <div class="money-cards">
-        <article class="money-card spend"><h3>Provider spend <span aria-hidden="true">↗</span></h3><strong id="providerSpend">—</strong><span class="money-badge">From gateway requests</span><p id="providerSpendNote">Waiting for recorded provider usage.</p></article>
-        <article class="money-card potential"><h3>Potential savings <span aria-hidden="true">✧</span></h3><strong id="potentialSavings">—</strong><span class="money-badge">Test-sample potential</span><p id="potentialSavingsNote">Run Savings proof to measure the difference.</p></article>
-        <article class="money-card saved"><div><h3>Cost saved <span class="money-badge">Estimated</span></h3><strong id="costSaved">—</strong></div><p id="costSavedNote">Avoided costs estimated from gateway logs.</p></article>
-        <div class="money-foot"><div><span>Gateway requests</span><strong id="moneyRequests">—</strong></div><div><span>Evaluation provider spend</span><strong id="evaluationSpend">—</strong><small id="evaluationSpendNote">Separate from gateway spend</small></div></div>
-      </div>
-      <section class="money-chart"><div class="money-chart-heading"><h2>Cost comparison</h2><span>Paid evaluations</span></div><p id="comparisonNote">Original vs optimized cost for the same test inputs.</p><div id="comparisonEmpty">Run a paid comparison in Savings proof to build this graph. No financial results are simulated.</div><svg id="costComparison" role="img" aria-label="Original and optimized evaluation costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Original</span><span><i class="legend-candidate"></i> Optimized + overhead</span></div><p class="chart-caption">Includes all priced comparisons. Potential savings only includes pairs passing the required phrase checks.</p></section>
-    </div>
-    <p class="money-disclosure">Amounts use recorded usage and configured rates or explicitly labeled estimates. Not invoice-verified. Potential savings is the difference on tested requests, not a forecast, and is not added to cost saved.</p>
+  <section id="modelsView" hidden>
+    <div class="workspace-heading"><div><div class="eyebrow">ONE ENDPOINT. YOUR CHOICE.</div><h1>Models</h1><p>Choose a configured model or let your routing rules choose.</p></div><a class="button-link" href="#guide">Connect your app ↗</a></div>
+    <div class="model-intro"><span class="model-mark">↔</span><div><strong>One request format. Two providers.</strong><p>Use the same OpenAI SDK for your configured OpenAI and Anthropic models.</p></div><span class="neutral-badge">Text chat</span></div>
+    <p id="modelCatalogStatus" class="field-help" role="status">Connect your Routewise key to see configured models.</p>
+    <div id="modelCatalog" class="model-grid"></div>
+    <p class="field-help">This list reflects your server configuration. It does not verify provider credentials, pricing, or availability.</p>
   </section>
 
+  <section id="usageView">
+    <div class="workspace-heading"><div><div class="eyebrow">YOUR AI, ACCOUNTED FOR</div><h1>Overview</h1><p>Your AI spend, savings, and opportunities to use fewer tokens.</p></div><a class="button-link primary-link" href="#guide">Connect your app <span>↗</span></a></div>
+    <div class="overview-toolbar"><h2>Spend &amp; savings</h2><label for="overviewDays"><span class="period-label">Period</span><select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
+    <section class="money-overview" aria-label="Costs and savings">
+      <div class="money-cards">
+        <article class="money-card spend"><h3>Provider spend <span aria-hidden="true">↗</span></h3><strong id="providerSpend">—</strong><span class="money-badge">Gateway usage</span><p id="providerSpendNote">Waiting for recorded provider usage.</p></article>
+        <article class="money-card saved"><h3>Cost saved <span aria-hidden="true">↘</span></h3><strong id="costSaved">—</strong><span class="money-badge">Estimated</span><p id="costSavedNote">Avoided costs estimated from gateway logs.</p></article>
+        <article class="money-card potential"><h3>Potential savings <span aria-hidden="true">✧</span></h3><strong id="potentialSavings">—</strong><span class="money-badge">From test comparisons</span><p id="potentialSavingsNote">Run Savings proof to measure the difference.</p></article>
+      </div>
+      <p id="moneyStatus" class="data-status" role="status">Connect your Routewise key to load financial evidence.</p>
+      <div class="overview-charts">
+        <section class="money-chart"><div class="money-chart-heading"><h2>Is optimization costing less?</h2><span>Cost comparison</span></div><p id="comparisonNote">Original vs optimized cost for the same test inputs.</p><div id="comparisonEmpty"><span class="empty-chart-symbol" aria-hidden="true">↘</span><strong>Your savings story starts here</strong><p>Compare an original and optimized request to see the difference in cost.</p><a href="#proof" class="chart-link">Set up Savings proof →</a></div><svg id="costComparison" role="img" aria-label="Original and optimized evaluation costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Original</span><span><i class="legend-candidate"></i> Optimized + overhead</span></div><p class="chart-caption">Priced test comparisons. Potential savings counts only pairs passing the required answer checks.</p></section>
+        <aside class="overview-side"><div class="money-foot"><div><span>Gateway requests</span><strong id="moneyRequests">—</strong><small>In the selected period</small></div><div><span>Evaluation spend</span><strong id="evaluationSpend">—</strong><small id="evaluationSpendNote">Separate from gateway spend</small></div></div><div class="next-step"><span class="eyebrow">START SMALL</span><h3>Find the tokens you don't need.</h3><p>Preview compression and context selection without a paid model call.</p><a href="#playground">Open Playground <span>↗</span></a></div></aside>
+      </div>
+      <p class="money-disclosure">Estimates are labeled. Costs are not invoice-verified. Potential savings applies to tested requests, not future spend, and is not added to cost saved.</p>
+    </section>
   <div id="emptyState" class="empty" aria-live="polite">
     <div>
       <div class="empty-mark" aria-hidden="true">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/><path d="M3 19h18"/></svg>
       </div>
       <h2>Connect your workspace</h2>
-      <p>Enter your Routewise API key above to reveal cache performance, routing outcomes, and estimated savings.</p>
+      <p>Use Connect API key in the top bar to see your request activity. Need integration help? Open Connect app in the sidebar.</p>
       <span class="privacy">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
         Your key is saved in this browser
@@ -157,6 +154,7 @@
 
   <div id="dashboard" hidden>
 
+    <details class="performance-details"><summary>Request performance <span>Cache hits, routing &amp; savings history</span></summary>
     <section class="hero">
       <div class="hero-head">
         <div>
@@ -166,12 +164,7 @@
             <span class="trend" id="tTrend">—</span>
           </div>
         </div>
-        <div class="period" id="periodRow" role="group" aria-label="Time period">
-          <button data-days="7">7D</button>
-          <button data-days="14">14D</button>
-          <button data-days="30">30D</button>
-          <button data-days="0">ALL</button>
-        </div>
+
       </div>
 
       <svg id="sparkline" aria-hidden="true"></svg>
@@ -210,7 +203,7 @@
       </div>
       <div class="tile flagship">
         <span class="corner-dot"></span>
-        <div class="label"><span class="tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="4"/></svg></span>Flagship</div>
+        <div class="label"><span class="tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="4"/></svg></span>Unchanged model</div>
         <div>
           <div class="value" id="tFlagship">—</div>
           <div class="caption" id="tFlagshipCount">—</div>
@@ -230,7 +223,7 @@
           <div class="track"><span id="barRouted" style="background:var(--lav); width:0%"></span></div>
         </div>
         <div class="share-row">
-          <div class="share-top"><span class="name">Flagship</span><span class="stat" id="sFlagship">—</span></div>
+          <div class="share-top"><span class="name">Unchanged model</span><span class="stat" id="sFlagship">—</span></div>
           <div class="track"><span id="barFlagship" style="background:var(--text); width:0%"></span></div>
         </div>
       </div>
@@ -241,6 +234,7 @@
       </div>
     </div>
 
+    </details>
     <div class="activity">
       <div class="activity-head">
         <h3>Recent activity</h3>
@@ -248,7 +242,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Time</th><th>Requested</th><th>Used</th><th>Outcome</th><th>Saved</th></tr></thead>
+          <thead><tr><th>Time</th><th>Requested</th><th>Used</th><th>Outcome</th><th>Est. savings</th></tr></thead>
           <tbody id="recentBody"></tbody>
         </table>
       </div>
@@ -257,6 +251,7 @@
   </div>
   </section>
 </main>
+</div>
 </div>
 
 <script>
@@ -300,13 +295,14 @@ function fmtMoney(n) { return "$" + n.toLocaleString(undefined, { minimumFractio
 function fmtPct(part, total) { return total > 0 ? ((part / total) * 100).toFixed(1) + "%" : "0.0%"; }
 // Provider model ids carry a release-date suffix that adds nothing in a table.
 function shortModel(m) { return String(m).replace(/-\d{8}$/, ""); }
+function escapeHtml(text) { return String(text).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]); }
 
 function outcomeFor(e) {
   if (e.cache_hit) return { label: "Cache hit", cls: "hit" };
-  if (e.matched_rule && e.matched_rule !== "default-fallback" && e.matched_rule !== "forced-flagship") {
+  if (e.matched_rule && !["default-fallback", "forced-flagship", "explicit-model"].includes(e.matched_rule)) {
     return { label: "Routed cheaper", cls: "routed" };
   }
-  return { label: "Flagship", cls: "flagship" };
+  return { label: e.matched_rule === "explicit-model" ? "Selected model" : "Default model", cls: "flagship" };
 }
 
 function renderSparkline(daily) {
@@ -404,7 +400,7 @@ function renderDayRows(daily) {
 // breakdown for the selected window, so the period control is a real filter
 // rather than a label on a static snapshot.
 function renderForPeriod() {
-  const daily = selectedDays > 0 ? allDaily.slice(-selectedDays) : allDaily;
+  const daily = allDaily.filter((day) => inSelectedPeriod(day.date));
   const t = daily.reduce((acc, d) => {
     acc.requests += d.requests;
     acc.savings += d.savings;
@@ -436,7 +432,7 @@ function renderForPeriod() {
     const last = daily[daily.length - 1].savings;
     const prev = daily[daily.length - 2].savings;
     const delta = prev > 0 ? ((last - prev) / prev) * 100 : 0;
-    $("tTrend").textContent = (delta >= 0 ? "+" : "") + delta.toFixed(0) + "% vs prior day";
+    $("tTrend").textContent = (delta >= 0 ? "+" : "") + delta.toFixed(0) + "% vs previous active day";
     $("tTrend").classList.toggle("negative", delta < 0);
   } else {
     $("tTrend").textContent = "day 1";
@@ -444,9 +440,9 @@ function renderForPeriod() {
   }
 
   $("tCache").textContent = fmtPct(t.cacheHits, t.requests);
-  $("tCacheCount").textContent = `${t.cacheHits.toLocaleString()} free`;
+  $("tCacheCount").textContent = `${t.cacheHits.toLocaleString()} provider calls avoided`;
   $("tRouted").textContent = fmtPct(t.routedCheaper, t.requests);
-  $("tRoutedCount").textContent = `${t.routedCheaper.toLocaleString()} downgraded`;
+  $("tRoutedCount").textContent = `${t.routedCheaper.toLocaleString()} routed by rules`;
   $("tFlagship").textContent = fmtPct(t.flagshipPassthrough, t.requests);
   $("tFlagshipCount").textContent = `${t.flagshipPassthrough.toLocaleString()} unchanged`;
 
@@ -460,9 +456,8 @@ function renderForPeriod() {
   renderSparkline(daily);
   renderDayRows(daily);
 
-  const cutoff = selectedDays > 0 && daily.length > 0 ? daily[0].date : null;
-  const rows = (cutoff ? allRecent.filter((e) => e.timestamp.slice(0, 10) >= cutoff) : allRecent).slice(0, ACTIVITY_ROWS);
-  $("activityCount").textContent = `last ${rows.length} of ${totalLogged.toLocaleString()}`;
+  const rows = allRecent.filter((e) => inSelectedPeriod(e.timestamp.slice(0, 10))).slice(0, ACTIVITY_ROWS);
+  $("activityCount").textContent = `${rows.length} most recent in this period`;
 
   const tbody = $("recentBody");
   tbody.innerHTML = "";
@@ -475,30 +470,42 @@ function renderForPeriod() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${new Date(e.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-      <td class="model">${shortModel(e.model_requested)}</td>
-      <td>${e.cache_hit ? "cache" : shortModel(e.model_used)}</td>
+      <td class="model">${escapeHtml(shortModel(e.model_requested))}</td>
+      <td>${e.cache_hit ? "cache" : escapeHtml(shortModel(e.model_used))}</td>
       <td><span class="pill ${o.cls}"><span class="dot"></span>${o.label}</span></td>
       <td>${fmtMoney(e.estimated_savings)}</td>`;
     tbody.appendChild(tr);
   }
 }
 
-function setPeriod(days) {
-  selectedDays = days;
-  document.querySelectorAll("#periodRow button").forEach((b) => b.classList.toggle("active", Number(b.dataset.days) === days));
-  renderForPeriod();
+function inSelectedPeriod(date) {
+  const today = new Date();
+  const end = today.toISOString().slice(0, 10);
+  today.setUTCDate(today.getUTCDate() - Math.max(0, selectedDays - 1));
+  const start = today.toISOString().slice(0, 10);
+  return date <= end && (!selectedDays || date >= start);
 }
 
+function setPeriod(days) {
+  selectedDays = days;
+  $("overviewDays").value = String(days);
+  if (realKey) renderForPeriod();
+}
+
+let statsController;
 async function loadStats() {
-  if (!realKey) return;
+  if (!realKey) { $("connectionFeedback").textContent = "Paste your Routewise API key to connect."; $("connectionMenu").open = true; return; }
+  statsController?.abort();
+  const controller = new AbortController(); statsController = controller;
   saveKey(realKey);
   $("statusDot").className = "dot";
   $("statusLabel").textContent = "Connecting";
+  $("connectionFeedback").textContent = "Checking your key…";
   $("errorState").hidden = true;
   setLoading(true);
 
   try {
-    const res = await fetch("/api/stats", { headers: { Authorization: "Bearer " + realKey } });
+    const res = await fetch("/api/stats", { headers: { Authorization: "Bearer " + realKey }, signal: controller.signal });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body?.error?.message || `Request failed (${res.status})`);
@@ -506,6 +513,12 @@ async function loadStats() {
     const stats = await res.json();
     $("statusDot").className = "dot live";
     $("statusLabel").textContent = "Connected";
+    $("connectionFeedback").textContent = "Connected. Your workspace data is ready.";
+    $("connectionMenu").open = false;
+    allDaily = stats.daily;
+    allRecent = stats.recent;
+    totalLogged = stats.totalRequests;
+    window.dispatchEvent(new Event("routewise-connected"));
 
     if (stats.totalRequests === 0) {
       $("dashboard").hidden = true;
@@ -513,45 +526,49 @@ async function loadStats() {
       return;
     }
 
-    allDaily = stats.daily;
-    allRecent = stats.recent;
-    totalLogged = stats.totalRequests;
     setPeriod(selectedDays);
   } catch (err) {
+    if (err.name === "AbortError") return;
     $("statusDot").className = "dot error";
     $("statusLabel").textContent = "Connection failed";
+    $("connectionFeedback").textContent = err.message;
+    $("connectionMenu").open = true;
     $("dashboard").hidden = true;
     $("emptyState").hidden = true;
     $("errorState").hidden = false;
     $("errorState").textContent = err.message;
   } finally {
-    setLoading(false);
+    if (statsController === controller) setLoading(false);
   }
 }
 
 const keyInput = $("apiKey");
-keyInput.addEventListener("input", () => { realKey = keyInput.value.trim(); });
-keyInput.addEventListener("focus", () => { if (realKey) keyInput.value = realKey; });
-keyInput.addEventListener("blur", () => { if (realKey) keyInput.value = maskKey(realKey); });
+keyInput.addEventListener("input", () => {
+  statsController?.abort(); setLoading(false);
+  realKey = keyInput.value.trim();
+  allDaily = []; allRecent = []; totalLogged = 0;
+  $("dashboard").hidden = true; $("errorState").hidden = true;
+  $("statusDot").className = "dot"; $("statusLabel").textContent = "Connect API key";
+  $("connectionFeedback").textContent = "Select Connect to load this key's workspace.";
+  setEmptyState("Connect your workspace", "Use Connect API key in the top bar to load your request activity.");
+});
 keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { keyInput.blur(); loadStats(); } });
 
 $("connectBtn").addEventListener("click", loadStats);
-$("periodRow").addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (btn) setPeriod(Number(btn.dataset.days));
-});
-window.addEventListener("resize", () => { if (!$("dashboard").hidden) renderSparkline(selectedDays > 0 ? allDaily.slice(-selectedDays) : allDaily); });
-
-document.querySelector('#periodRow button[data-days="14"]').classList.add("active");
+$("overviewDays").addEventListener("change", () => setPeriod(Number($("overviewDays").value)));
+window.addEventListener("resize", () => { if (!$("dashboard").hidden) renderSparkline(allDaily.filter((day) => inSelectedPeriod(day.date))); });
+document.querySelector(".performance-details").addEventListener("toggle", (event) => { if (event.target.open && allDaily.length) renderForPeriod(); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") { $("connectionMenu").open = false; } });
 
 const saved = storedKey();
 if (saved) {
   realKey = saved;
-  keyInput.value = maskKey(saved);
+  keyInput.value = saved;
   loadStats();
 }
 </script>
 <script src="/workspace.js"></script>
+<script src="/integration.js"></script>
 <script src="/proof.js"></script>
 <script src="/financial-overview.js"></script>
 </body>

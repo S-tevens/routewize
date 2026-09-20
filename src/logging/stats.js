@@ -39,7 +39,7 @@ export function computeStats(customerName) {
     if (e.cache_hit) {
       cacheHits++;
       bucket.cacheHits++;
-    } else if (e.matched_rule && e.matched_rule !== "default-fallback" && e.matched_rule !== "forced-flagship") {
+    } else if (e.matched_rule && !["default-fallback", "forced-flagship", "explicit-model"].includes(e.matched_rule)) {
       routedCheaper++;
       bucket.routedCheaper++;
     } else {

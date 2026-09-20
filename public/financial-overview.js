@@ -78,8 +78,8 @@ function drawCostComparison(daily) {
   }
 }
 $("overviewDays").addEventListener("change", loadFinancialOverview);
-$("connectBtn").addEventListener("click", loadFinancialOverview);
+window.addEventListener("routewise-connected", loadFinancialOverview);
 window.addEventListener("overview-view", loadFinancialOverview);
 window.addEventListener("proof-complete", loadFinancialOverview);
 $("apiKey").addEventListener("input", () => { overviewController?.abort(); clearFinancialOverview(); $("moneyStatus").textContent = "Connect this key to load its financial evidence."; });
-if (location.hash === "#usage") loadFinancialOverview();
+if (!location.hash || location.hash === "#usage") loadFinancialOverview();

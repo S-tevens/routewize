@@ -23,6 +23,7 @@ export async function callAnthropic({ apiKey, model, messages, temperature, max_
 
   return {
     content,
+    finish_reason: response.stop_reason === "max_tokens" ? "length" : "stop",
     usage: {
       prompt_tokens: response.usage?.input_tokens ?? 0,
       completion_tokens: response.usage?.output_tokens ?? 0,

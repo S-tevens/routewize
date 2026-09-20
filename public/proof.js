@@ -12,7 +12,7 @@ async function checkProofConfig() {
   } catch (err) { $("proofConfig").textContent = err.message; }
 }
 window.addEventListener("proof-view", checkProofConfig);
-$("connectBtn").addEventListener("click", checkProofConfig);
+window.addEventListener("routewise-connected", checkProofConfig);
 if (location.hash === "#proof") checkProofConfig();
 
 $("proofForm").addEventListener("submit", async (event) => {
