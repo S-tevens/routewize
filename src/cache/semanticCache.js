@@ -21,7 +21,7 @@ export class SemanticCache {
     return now - entry.storedAt < entry.ttlSeconds * 1000;
   }
 
-  find(customerApiKey, embedding, { similarityThreshold, ttlSeconds }) {
+  find(customerApiKey, embedding, { similarityThreshold, ttlSeconds, includeNearMiss = false }) {
     const now = Date.now();
     const entries = this.entriesByCustomer.get(customerApiKey) ?? [];
 
@@ -40,7 +40,9 @@ export class SemanticCache {
     if (best && bestSimilarity >= similarityThreshold) {
       return { hit: true, similarity: bestSimilarity, entry: best };
     }
-    return { hit: false, similarity: bestSimilarity };
+    // Opt-in metadata only: the threshold, ranking, TTL and hit shape above
+    // are unchanged. Ordinary callers still receive the original miss shape.
+    return { hit: false, similarity: bestSimilarity, ...(includeNearMiss && best ? { nearMissEntry: best } : {}) };
   }
 
   store(customerApiKey, { embedding, promptText, response, model, ttlSeconds }) {
@@ -52,7 +54,28 @@ export class SemanticCache {
       if (!bucket.length) this.entriesByCustomer.delete(key);
     }
     const entries = this._entriesFor(customerApiKey);
-    entries.push({ embedding, promptText, response, model, storedAt: Date.now(), ttlSeconds });
+    const entry = { embedding, promptText, response, model, storedAt: Date.now(), ttlSeconds };
+    entries.push(entry);
+    return entry;
+  }
+
+  // Replace only the entry stored by this completed request. Appending an
+  // identical embedding would lose to that entry under find()'s existing tie
+  // rule. Identity checks also prevent late judges from reviving evicted or
+  // expired entries, or promoting across namespaces. Never extend either TTL.
+  promote(customerApiKey, currentEntry, sourceEntry) {
+    const entries = this.entriesByCustomer.get(customerApiKey) ?? [];
+    const index = entries.indexOf(currentEntry);
+    const now = Date.now();
+    if (index < 0 || !entries.includes(sourceEntry) || currentEntry === sourceEntry ||
+        !this._isFresh(currentEntry, now) || !this._isFresh(sourceEntry, now)) return false;
+    const expiresAt = Math.min(
+      currentEntry.storedAt + currentEntry.ttlSeconds * 1000,
+      sourceEntry.storedAt + sourceEntry.ttlSeconds * 1000
+    );
+    entries[index] = { ...currentEntry, response: sourceEntry.response, model: sourceEntry.model,
+      storedAt: now, ttlSeconds: (expiresAt - now) / 1000 };
+    return true;
   }
 
   // Drops expired entries so long-running processes don't leak memory.

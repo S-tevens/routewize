@@ -25,9 +25,11 @@ These are shared, core mechanisms that other work depends on. Adding to them is 
 - `scripts/dryRun.js` — this must stay behaviorally identical to the live server's cache+router logic. It's the sales-proof mechanism; if it diverges from what the live proxy actually does, every number it produces becomes a lie to a prospective customer.
 - **Streaming (`handleStreamingCall` in `server.js`, `streamOpenAI`/`streamAnthropic`)** has no live end-to-end test in this environment (no real API key) — offline HTTP integration tests cover success/failure paths for both real SDK adapters; real provider success is still unverified. If you have a real key, do one live streaming smoke test before trusting the successful-multi-chunk path, and update GAMEPLAN.md's row for it.
 
-## Current state (as of 2026-09-17)
+## Current state (as of 2026-09-22)
 
 Merged to `master`: core proxy (now with streaming support and Anthropic prompt caching), semantic cache (namespace-isolated + real embeddings), rules router, context optimization, cost evaluation subsystem, savings dashboard + financial overview (per-mechanism savings breakdown, plus a live-traffic baseline-vs-actual chart), a separate cross-customer admin view, dry-run tool, live pricing feed, CI running `npm test` on every PR, verified-current model IDs, config hot-reload, env-var-based secrets (interim), and per-customer rate limits/spend caps. PR #2 merged the SQLite request-log index, PR #3 the config comment-placeholder fix, PR #4 the pitch-one-pager rebrand, PR #5 offline streaming integration tests (+ a real Anthropic usage-timing bug fix, + a post-merge Windows test-portability fix), PR #6 Anthropic provider-native prompt caching, PR #7 the per-mechanism savings breakdown, PR #8 the live-traffic comparison chart. The project itself was rebranded routewise → routewize (repo, code, docs) on 2026-09-17. 105 tests passing, all PRs merged, zero open PRs/branches as of 2026-09-17. Every item from the original "next things to add" roadmap is now done or explicitly deferred (see the "later" rows below) — the roadmap continues past this point per SYSTEM_DESIGN.md §9 and the Production-readiness checklist below as new gaps surface.
+
+**Pending review:** `feature/near-miss-verification` adds default-off, paid asynchronous cache verification after successful JSON/SSE responses, with strict verdicts, namespace/TTL-safe promotion and logged judge overhead. Master baseline: 105/105 tests; feature suite: 138/138 passing. **Danger-zone files touched:** `src/server.js`, `src/cache/semanticCache.js`, and `scripts/dryRun.js`. Existing hit/miss matching is unchanged; the dry run now rejects verification-enabled records instead of silently omitting judge spend. No real-provider smoke test or measured savings claim; not yet merged.
 
 **The actual bottleneck is not engineering** — it's that there is still no real customer traffic data. Every savings number produced so far is synthetic. Don't let engineering work substitute for getting that data; see CONTEXT.md's "Next steps" for the non-engineering sequence.
 
@@ -37,6 +39,7 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 
 | Status | Task | Notes |
 |---|---|---|
+| ✅ Implemented; pending review | Async near-miss cache verification | `feature/near-miss-verification`: opt-in margin/judge model, post-response YES/NO check, same-namespace promotion, paid judge events (including rejection/error), spend-cap check and overhead accounting. Existing matching preserved and near-duplicate regression covered; unit + offline HTTP tests cover both providers and JSON/SSE. Dry-run reports reject enabled configs. Mark shipped after merge. |
 | ✅ Done | CI pipeline (`npm test` on every PR) | `.github/workflows/test.yml` |
 | ✅ Done | Verify model IDs are still live | Confirmed against provider docs 2026-09-12: `claude-3-5-sonnet-20241022` and `claude-3-5-haiku-20241022` are **retired** (would fail live). Updated `customers.example.yaml`/`customers.yaml` to `claude-sonnet-4-6` / `claude-haiku-4-5-20251001`. `gpt-4o`/`gpt-4o-mini` confirmed still active. See README's "Pricing data" section. Re-check periodically — providers retire models on their own schedule. |
 | ✅ Done | Config hot-reload | `watchCustomersConfig()` in `src/config/loadConfig.js` — server watches `customers.yaml`, reloads on change, keeps the previous good config if the edit fails to parse. Verified live (edited the file while a running server served a request against the new key, no restart) plus 2 automated tests. |
@@ -66,6 +69,7 @@ Everything needed to go from "one unpaid pilot" to "production-grade, multiple r
 - [x] Streaming support (test-coverage caveat — no live provider run yet)
 - [x] Provider-native prompt caching (Anthropic)
 - [x] Queryable request log (SQLite index, no full-file scans)
+- [ ] Async near-miss cache verification — implemented/tested on `feature/near-miss-verification`, pending PR review/merge; default off, post-response only, paid/logged, no live-provider verification yet
 - [ ] Live streaming smoke test — blocked on a real provider key (see task queue)
 - [ ] Persistent, shared cache (Redis + pgvector/Qdrant) — deliberately deferred until there's >1 customer or >1 server process
 - [ ] Real secrets manager (Vault/AWS/GCP) — deliberately deferred until there's customer volume to justify it

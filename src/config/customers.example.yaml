@@ -60,6 +60,20 @@ customers:
       enabled: true
       similarity_threshold: 0.92
       ttl_seconds: 86400 # 24h
+      # Opt-in PAID background judge; omitted/false means no new behavior or spend.
+      # Runs only after a successful response (including a complete stream),
+      # for similarities in [similarity_threshold - margin, similarity_threshold).
+      near_miss_verification:
+        enabled: false
+        margin: 0.05 # default; finite number > 0 and <= 1
+        judge_model: openai/gpt-4o-mini # default; provider/model, openai or anthropic
+      # Uses this customer's key for the named judge provider. Configure its
+      # evaluation.pricing["provider/model"] to log measured spend; missing
+      # pricing/usage or a failed call logs null (unknown), never free.
+      # One judge at a time per customer, 10s timeout, no retries; respects the
+      # daily spend cap and records judge usage toward it. NO/invalid/error
+      # keeps the fresh answer; YES reuses the old answer for future requests,
+      # in the same namespace, without extending the source answer's TTL.
 
     # Rules are evaluated top to bottom; first match wins. Anything that
     # doesn't match falls through to `default` above (no silent downgrade).

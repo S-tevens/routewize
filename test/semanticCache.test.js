@@ -69,3 +69,52 @@ test("finds the best match among multiple entries, not just the first", () => {
   assert.equal(result.hit, true);
   assert.equal(result.entry.promptText, "exact"); // higher similarity than "close", even though stored second
 });
+
+test("near-miss metadata is opt-in and only exposes the best fresh entry in the namespace", () => {
+  const cache = new SemanticCache();
+  cache.store("other", { embedding: [1, 0], promptText: "other customer", response: makeResponse(), model: "gpt-4o", ttlSeconds: 3600 });
+  const expired = cache.store("cust_1", { embedding: [1, 0], promptText: "expired", response: makeResponse(), model: "gpt-4o", ttlSeconds: 3600 });
+  const best = cache.store("cust_1", { embedding: [0.88, Math.sqrt(1 - 0.88 ** 2)], promptText: "best", response: makeResponse(), model: "gpt-4o", ttlSeconds: 3600 });
+  cache.store("cust_1", { embedding: [0, 1], promptText: "far", response: makeResponse(), model: "gpt-4o", ttlSeconds: 3600 });
+  expired.storedAt -= 3601 * 1000;
+  const options = { similarityThreshold: 0.92, ttlSeconds: 3600 };
+  const ordinary = cache.find("cust_1", [1, 0], options);
+  assert.deepEqual(Object.keys(ordinary).sort(), ["hit", "similarity"]);
+  const enriched = cache.find("cust_1", [1, 0], { ...options, includeNearMiss: true });
+  assert.equal(enriched.hit, false);
+  assert.equal(enriched.similarity, ordinary.similarity);
+  assert.equal(enriched.nearMissEntry, best);
+  assert.deepEqual(cache.find("empty", [1, 0], { ...options, includeNearMiss: true }), { hit: false, similarity: -1 });
+});
+
+test("promotion replaces the exact request entry without changing tie ranking or extending source TTL", () => {
+  const cache = new SemanticCache();
+  const source = cache.store("cust_1", { embedding: [1, 0], promptText: "source", response: makeResponse(), model: "gpt-4o", ttlSeconds: 60 });
+  source.storedAt -= 30_000;
+  const current = cache.store("cust_1", { embedding: [0, 1], promptText: "current", response: { ...makeResponse(), content: "fresh answer" }, model: "gpt-4o", ttlSeconds: 3600 });
+  cache.store("cust_1", { ...current, response: { ...makeResponse(), content: "later request" } });
+  assert.equal(cache.promote("cust_1", current, source), true);
+  const result = cache.find("cust_1", [0, 1], { similarityThreshold: 0.92 });
+  assert.equal(result.hit, true);
+  assert.equal(result.entry.response, source.response);
+  assert.equal(result.entry.promptText, "current");
+  assert.equal(result.entry.storedAt + result.entry.ttlSeconds * 1000, source.storedAt + source.ttlSeconds * 1000);
+  assert.equal(current.response.content, "fresh answer", "already returned response object is untouched");
+  assert.equal(cache.promote("cust_1", current, source), false, "a late duplicate cannot replace a newer promotion");
+});
+
+test("promotion cannot cross namespaces or revive an expired or evicted source/target", () => {
+  const cache = new SemanticCache({ maxEntries: 2 });
+  const store = (key, embedding = [1, 0]) => cache.store(key, { embedding, promptText: "hi", response: makeResponse(), model: "gpt-4o", ttlSeconds: 60 });
+  const source = store("one");
+  const other = store("two");
+  assert.equal(cache.promote("two", other, source), false);
+  const current = store("two", [0, 1]); // evicts source
+  assert.equal(cache.promote("one", source, source), false);
+  assert.equal(cache.promote("two", current, source), false);
+  other.storedAt -= 61_000;
+  assert.equal(cache.promote("two", current, other), false);
+  other.storedAt = Date.now();
+  current.storedAt -= 61_000;
+  assert.equal(cache.promote("two", current, other), false);
+});

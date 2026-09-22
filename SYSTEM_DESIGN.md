@@ -1,6 +1,6 @@
 # routewize — System Design
 
-Last updated: 2026-09-13
+Last updated: 2026-09-22
 
 This describes the system as it actually exists on `main` today, not an aspirational future version. Where something is a known gap, it's called out explicitly rather than glossed over — see [CONTEXT.md](CONTEXT.md) for the prioritized list of what to build next.
 
@@ -103,6 +103,14 @@ sequenceDiagram
 
 **Why the cache is namespaced the way it is:** a cache hit must never reuse an answer generated under different instructions, model, temperature, or resolved route. The namespace key folds all of that in; real embedding similarity search still runs *within* one namespace, so near-duplicate wording still hits — this combination was the fix applied when integrating jeev-69's branch, which had replaced real similarity matching with an exact-request hash (losing near-duplicate detection entirely). See the PR (#1) description for the full before/after.
 
+### Async near-miss verification (default off)
+
+With `cache.near_miss_verification.enabled: true`, `find()` optionally exposes its nearest fresh miss candidate without changing hit/miss decisions. Similarities in `[threshold - margin, threshold)` (default margin `0.05`) qualify. After a successful foreground response emits `finish`, `nearMissVerification.js` defers a strict YES/NO judge call to the next event-loop turn using the existing OpenAI/Anthropic adapters and the customer's configured `judge_model` (`provider/model`, default `openai/gpt-4o-mini`). JSON and SSE both complete before verification; failed/aborted requests do not launch work.
+
+On a complete YES, `SemanticCache.promote()` replaces only the new entry held by this request with an entry pointing at the source response. Appending a duplicate vector would lose to the existing tie rule, so promotion replaces the exact entry by object identity without altering search/ranking. Both entries must still be fresh in the same namespace; expiry is bounded by both original expiries. NO/errors leave the ordinary fresh-response cache entry intact. Since misses were already cached, promotion provides verified answer reuse, not an assumed improvement in hit rate.
+
+One judge may be in flight per customer, with a 10-second timeout and zero retries; work is best effort and not persistent. The daily cap is checked after foreground spend and judge spend is recorded. Each attempted call, including rejection/error, produces a normal financial log event under `cache_verification_judge_call`: configured-rate usage spend or null if unknown, plus estimated overhead deducted from cache savings and included in baseline-vs-actual. Existing reporting counts the additional events. No prompt/answer text is logged. The dry-run tool refuses verification-enabled customer records rather than producing a forecast that silently omits the judge and its cost; disabled behavior is unchanged.
+
 ### Streaming (`stream: true`)
 
 Everything above (rate limit, context optimization, routing, cache namespace construction) runs identically regardless of `stream`; only what happens once a cache miss commits to an actual provider call differs.
@@ -151,7 +159,7 @@ customers:
     name: string
     provider_keys: { openai, anthropic }   # the customer's own keys
     default: { provider, model }            # flagship fallback
-    cache: { enabled, similarity_threshold, ttl_seconds }
+    cache: { enabled, similarity_threshold, ttl_seconds, near_miss_verification: { enabled, margin, judge_model } }
     routing:
       rules: [{ name, match: { max_prompt_tokens, keywords }, route_to: { provider, model } }]
     optimization: { compression, selection, max_context_tokens }   # defaults for context optimization

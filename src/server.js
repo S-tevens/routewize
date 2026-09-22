@@ -16,6 +16,7 @@ import { UsageGuard } from "./middleware/usageGuard.js";
 import { watchCustomersConfig, loadCustomers } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
+import { scheduleNearMissVerification } from "./cache/nearMissVerification.js";
 import { selectRoute } from "./router/rules.js";
 import { callOpenAI, streamOpenAI } from "./providers/openai.js";
 import { callAnthropic, streamAnthropic } from "./providers/anthropic.js";
@@ -165,6 +166,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
 
   try {
     let embedding;
+    let cacheResult;
     if (cacheConfig.enabled && !forceFlagship) {
       const embedder = createEmbeddingProvider({
         provider: EMBEDDING_PROVIDER,
@@ -175,7 +177,9 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       const result = cache.find(cacheNamespace, embedding, {
         similarityThreshold: cacheConfig.similarity_threshold ?? 0.92,
         ttlSeconds: cacheConfig.ttl_seconds ?? 86400,
+        includeNearMiss: cacheConfig.near_miss_verification?.enabled === true,
       });
+      cacheResult = result;
 
       if (result.hit) {
         const { entry } = result;
@@ -258,13 +262,14 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     const callArgs = { apiKey: providerKey, model: route.model, messages: optimized.messages, temperature, max_tokens };
 
     if (isStream) {
-      return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, embedding, embeddingText, usageGuard, forceFlagship });
+      return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship });
     }
 
     const result = route.provider === "anthropic" ? await callAnthropic(callArgs) : await callOpenAI(callArgs);
 
+    let currentEntry;
     if (cacheConfig.enabled && !forceFlagship) {
-      cache.store(cacheNamespace, {
+      currentEntry = cache.store(cacheNamespace, {
         embedding,
         promptText: embeddingText,
         response: result,
@@ -300,6 +305,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       optimization: optimized.metrics,
     });
 
+    scheduleNearMissVerification(res, { customer, cache, cacheNamespace, cacheResult, currentEntry, usageGuard });
     return res.json(
       buildResponse({
         modelUsed: route.model,
@@ -338,7 +344,7 @@ function endSseStream(res) {
 // gets a clean 502 JSON response instead of an SSE payload. Once streaming
 // has visibly started, a later failure can only be reported as an in-stream
 // error event, since the response status/headers are already sent.
-async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, embedding, embeddingText, usageGuard, forceFlagship }) {
+async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship }) {
   const resultSink = {};
   const generator = route.provider === "anthropic" ? streamAnthropic(callArgs, resultSink) : streamOpenAI(callArgs, resultSink);
   const iterator = generator[Symbol.asyncIterator]();
@@ -353,6 +359,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
 
   writeSseHeaders(res);
   let content = "";
+  let currentEntry;
 
   const processChunk = (chunk) => {
     const delta = chunk.choices?.[0]?.delta?.content;
@@ -373,7 +380,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     usageGuard.recordSpend(customer.api_key, actualCost);
 
     if (cacheConfig.enabled && !forceFlagship) {
-      cache.store(cacheNamespace, { embedding, promptText: embeddingText, response: { content, usage }, model: route.model, ttlSeconds: cacheConfig.ttl_seconds ?? 86400 });
+      currentEntry = cache.store(cacheNamespace, { embedding, promptText: embeddingText, response: { content, usage }, model: route.model, ttlSeconds: cacheConfig.ttl_seconds ?? 86400 });
     }
 
     let providerSpend = null;
@@ -402,6 +409,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     writeSseChunk(res, chunk);
   };
 
+  let completed = false;
   try {
     if (!first.done) {
       processChunk(first.value);
@@ -411,11 +419,13 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
         next = await iterator.next();
       }
     }
+    completed = true;
   } catch (err) {
     console.error(err);
     writeSseChunk(res, { error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
 
+  if (completed) scheduleNearMissVerification(res, { customer, cache, cacheNamespace, cacheResult, currentEntry, usageGuard });
   return endSseStream(res);
 }
 
