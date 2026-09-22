@@ -13,6 +13,7 @@ function clearFinancialOverview() {
   $("liveCostComparison").setAttribute("hidden", "");
   $("liveComparisonEmpty").hidden = false;
   $("liveComparisonNote").textContent = "What your default model would have cost vs. what gateway requests actually cost, by day.";
+  $("liveComparisonBadge").textContent = "Waiting for traffic";
 }
 async function loadFinancialOverview() {
   overviewController?.abort();
@@ -42,6 +43,7 @@ async function loadFinancialOverview() {
     drawCostComparison("costComparison", "comparisonEmpty", data.comparison_daily);
     const liveDaily = data.live_comparison_daily ?? [];
     $("liveComparisonNote").textContent = data.live_priced_requests ? `${data.live_priced_requests} gateway requests across ${liveDaily.length} days. Lower cost is better.` : "What your default model would have cost vs. what gateway requests actually cost, by day.";
+    $("liveComparisonBadge").textContent = data.live_priced_requests ? "Live" : "Waiting for traffic";
     drawCostComparison("liveCostComparison", "liveComparisonEmpty", liveDaily);
   } catch (err) {
     if (err.name !== "AbortError") $("moneyStatus").textContent = err.message;

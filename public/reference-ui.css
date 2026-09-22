@@ -1189,13 +1189,24 @@ tbody tr:last-child td {
   grid-template-columns: 0.95fr 1.2fr;
   gap: 28px;
   margin-top: 22px;
-  align-items: stretch;
+  align-items: start;
 }
-.money-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.money-charts {
+  display: flex;
+  flex-direction: column;
   gap: 20px;
   min-width: 0;
+}
+.money-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.money-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 .money-card {
   border: 1px solid #354329;
@@ -1220,9 +1231,8 @@ tbody tr:last-child td {
 .money-card h3 > span:not(.money-badge) {
   font-size: 24px;
 }
-.money-card > strong,
-.money-card > div > strong {
-  font-size: clamp(25px, 2.6vw, 38px);
+.money-card > strong {
+  font-size: clamp(22px, 2.2vw, 30px);
   font-weight: 600;
   letter-spacing: -0.05em;
   line-height: 1.15;
@@ -1237,11 +1247,15 @@ tbody tr:last-child td {
 .money-card.spend {
   background: #b9e884;
   color: #16210e;
+  padding: 19px;
 }
+.money-card.spend > strong { font-size: clamp(19px, 1.7vw, 24px); }
 .money-card.potential {
   background: #b9afeb;
   color: #221b36;
+  padding: 19px;
 }
+.money-card.potential > strong { font-size: clamp(19px, 1.7vw, 24px); }
 .money-badge {
   font-size: 11px;
   padding: 4px 7px;
@@ -1249,32 +1263,36 @@ tbody tr:last-child td {
   border-radius: 5px;
   margin-top: 14px;
 }
+/* The one number this whole product exists to produce -- the visual anchor
+   of the workspace, not a peer of the two supporting stats beside it. */
 .money-card.saved {
-  grid-column: 1/-1;
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 22px;
-  align-items: center;
-  background: #fafcf6;
-  box-shadow: none;
-  border-color: #9ba78e;
-  border-radius: 12px;
-  padding: 19px 22px;
+  background: var(--lime);
+  color: #16210e;
+  border-color: #3a4a2a;
+  box-shadow: 6px 7px 0 #223019;
+  border-radius: 20px;
+  padding: 30px 32px;
 }
 .money-card.saved h3 {
-  justify-content: flex-start;
-  gap: 8px;
-  margin-bottom: 12px;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+.money-card.saved > strong {
+  font-size: clamp(40px, 5vw, 64px);
 }
 .money-card.saved .money-badge {
-  margin: 0;
+  background: #16210e;
+  color: var(--lime);
+  border-color: #16210e;
 }
 .money-card.saved p {
-  color: var(--muted);
-  margin: 0;
+  font-size: 13px;
+}
+.money-breakdown {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 .money-foot {
-  grid-column: 1/-1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
