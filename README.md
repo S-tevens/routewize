@@ -161,6 +161,27 @@ A cache hit sends the full cached answer as a single chunk immediately, rather t
 
 One tradeoff worth knowing: once the first chunk is sent, the HTTP response is already committed to `200` with `Content-Type: text/event-stream` — a failure after that point can only be reported as an in-stream error event, not a clean error status code. A failure *before* the first chunk (e.g. an invalid provider key) still returns a normal `502` JSON error, same as the non-streaming path. `tools` and `response_format` remain unsupported either way.
 
+### Async near-miss verification (opt-in, paid)
+
+`cache.near_miss_verification` is **disabled by default**. To enable it for one customer:
+
+```yaml
+cache:
+  enabled: true
+  similarity_threshold: 0.92
+  ttl_seconds: 86400
+  near_miss_verification:
+    enabled: true
+    margin: 0.05
+    judge_model: openai/gpt-4o-mini
+```
+
+The normal hit threshold and namespace stay unchanged. A miss with similarity in `[threshold - margin, threshold)` still calls the selected provider and returns its fresh answer. Only after the entire successful JSON/SSE response finishes does a background judge compare the current prompt with the nearest cached prompt and answer. An exact, complete `YES` replaces this request's newly stored entry with the cached answer for future requests; `NO`, malformed/truncated output, and errors keep the fresh answer. Promotion never changes the completed response or extends the source answer's expiry. This follows the asynchronous verification idea in [Krites](https://arxiv.org/abs/2602.13165); this proxy already caches ordinary misses, so no additional hit-rate or savings improvement is claimed without real workload measurements.
+
+`margin` defaults to `0.05` and must be a finite number greater than zero and at most one. `judge_model` defaults to `openai/gpt-4o-mini` and uses `provider/model` syntax (`openai` or `anthropic`). The named provider uses that customer's key, independently of the foreground route. Invalid settings or a missing judge key skip verification. Forced-flagship calls, hits, failed/aborted responses, and misses outside the margin never launch a judge. Work is best effort: at most one judge per customer at a time, no queue/retries, a 10-second timeout, and the customer's daily spend cap is checked before dispatch. A restart can lose unfinished work.
+
+Every attempted judge call writes a separate `logRequestEvent` with `financials.source: cache_verification_judge_call`, including `NO` and failures. Configure `evaluation.pricing["provider/model"]` for the judge to calculate `provider_spend_usd` from reported usage; otherwise it is `null` (unknown), never silently free. Judge spend counts toward the daily cap (configured-rate spend when available, otherwise the existing estimate). Estimated judge overhead is deducted from cache savings and included in the live comparison with a zero baseline. Existing reporting counts these log events alongside foreground calls; `cache_verification.outcome` distinguishes promotion, rejection, stale entries, invalid verdicts, and errors. Prompts and answers are never included in the log.
+
 ## Dry run (prove savings before going live)
 
 Run a customer's historical request log through the router+cache logic with **no real API calls** and get one number: how much this would have saved.
@@ -178,6 +199,8 @@ Input is JSONL, one request per line:
 `usage` is optional — omit it and token counts are estimated from text length.
 
 By default the dry run uses a deterministic local "mock" embedding (no embedding-API cost) so you can get a number for free. Set `EMBEDDING_PROVIDER=openai` in `.env` to use real embeddings for more accurate similarity matching once you're ready to spend a few cents on it.
+
+The dry run refuses records for customers with near-miss verification enabled: it cannot simulate a paid judge, its promotions, or its overhead. Use a separate verification-disabled config to measure that baseline; do not present it as a projection of verification-enabled traffic.
 
 ## Pricing data
 

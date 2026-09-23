@@ -82,6 +82,9 @@ async function main() {
     baselineCostTotal += baselineCost;
 
     const cacheConfig = customer.cache ?? { enabled: false };
+    if (cacheConfig.enabled && cacheConfig.near_miss_verification?.enabled === true) {
+      throw new Error("Dry run cannot simulate paid async near-miss verification. Use a separate config with cache.near_miss_verification.enabled: false; its report represents only that disabled baseline.");
+    }
     let optimizedCost;
     let stats = perCustomer.get(customer.name) ?? { requests: 0, cacheHits: 0, routed: 0, baseline: 0, optimized: 0 };
     stats.requests++;
