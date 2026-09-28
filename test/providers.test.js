@@ -67,21 +67,44 @@ test("DeepSeek cached tokens normalize without double counting", () => {
   assert.throws(() => normalizeUsage("deepseek", { usage: { ...normalized, prompt_cache_miss_tokens: 10 } }));
 });
 
-test("missing usage, incomplete answers and unsupported billing do not become zero spend", async () => {
+test("missing usage, malformed answers and unsupported billing do not become zero spend", async () => {
   await assert.rejects(callCompatible("gemini", args, { fetchImpl: async () => json({ ...completion, usage: null }) }));
-  await assert.rejects(callCompatible("gemini", args, { fetchImpl: async () => json({ ...completion, choices: [{ message: { content: "partial" }, finish_reason: "length" }] }) }));
+  await assert.rejects(callCompatible("gemini", args, { fetchImpl: async () => json({ ...completion, choices: [{ message: { content: "no reason" } }] }) }));
   assert.equal(priceResponse("openrouter", { usage: { ...usage, prompt_tokens_details: { cache_write_tokens: 2 } } }, rates).cost_usd, usage.cost);
   assert.throws(() => priceResponse("openrouter", { usage: { prompt_tokens: 10, completion_tokens: 2 } }, rates));
   assert.throws(() => priceResponse("gemini", { usage: { ...usage, prompt_tokens_details: { audio_tokens: 3 } } }, rates));
   assert.throws(() => priceResponse("mistral", { usage: { ...usage, prompt_tokens_details: { cache_write_tokens: 3 } } }, rates));
 });
 
-test("compatible stream without final usage or successful finish fails", async () => {
+test("compatible stream without final usage or any finish reason fails", async () => {
   for (const chunk of [
     { choices: [{ delta: { content: "hello" }, finish_reason: "stop" }] },
-    { choices: [{ delta: { content: "partial" }, finish_reason: "length" }], usage },
+    { choices: [{ delta: { content: "cut off" }, finish_reason: null }], usage },
   ]) {
     const fetchImpl = async () => new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { "Content-Type": "text/event-stream" } });
     await assert.rejects(async () => { for await (const c of streamCompatible("gemini", args, {}, { fetchImpl })) void c; });
   }
+});
+
+// max_tokens truncation is a normal, already-billed OpenAI-compatible answer: it must reach
+// the client with its real finish_reason (not a 502), flagged incomplete so it is never cached.
+test("length-truncated answers are returned with their finish reason and marked incomplete", async () => {
+  const truncated = { ...completion, choices: [{ message: { content: "partial" }, finish_reason: "length" }] };
+  const result = await callCompatible("gemini", args, { fetchImpl: async () => json(truncated) });
+  assert.equal(result.content, "partial");
+  assert.equal(result.finishReason, "length");
+  assert.equal(result.complete, false);
+  assert.equal(priceResponse("gemini", result.raw, rates).cost_usd, 0.000028);
+
+  const full = await callCompatible("gemini", args, { fetchImpl: async () => json(completion) });
+  assert.equal(full.complete, true);
+
+  const chunk = { choices: [{ index: 0, delta: { content: "partial" }, finish_reason: "length" }], usage };
+  const fetchImpl = async () => new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { "Content-Type": "text/event-stream" } });
+  const sink = {}, chunks = [];
+  for await (const c of streamCompatible("gemini", args, sink, { fetchImpl })) chunks.push(c);
+  assert.equal(chunks.flatMap(c => c.choices).find(c => c.finish_reason)?.finish_reason, "length");
+  assert.equal(chunks.filter(c => c.usage).length, 1);
+  assert.equal(sink.finishReason, "length");
+  assert.equal(sink.complete, false);
 });

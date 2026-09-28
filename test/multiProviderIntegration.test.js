@@ -27,7 +27,8 @@ async function fixture(t, provider, mode = "success") {
     }
     const usage = { prompt_tokens: 10, completion_tokens: 2, cost: 0.00002,
       ...(provider === "deepseek" ? { prompt_cache_hit_tokens: 4, prompt_cache_miss_tokens: 6 } : { prompt_tokens_details: { cached_tokens: 4 } }) };
-    const raw = { id: "fixture", model: body.model, choices: [{ message: { role: "assistant", content: "Hello world" }, finish_reason: "stop" }], usage };
+    const finish = mode === "length" ? "length" : "stop";
+    const raw = { id: "fixture", model: body.model, choices: [{ message: { role: "assistant", content: "Hello world" }, finish_reason: finish }], usage };
     if (!body.stream) {
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(raw));
@@ -40,7 +41,7 @@ async function fixture(t, provider, mode = "success") {
     if (mode === "success") await gate;
     if (mode === "during") send({ error: { message: "fixture stream failed" } });
     else {
-      send(chunk(" world", { choices: [{ index: 0, delta: { content: " world" }, finish_reason: "stop" }],
+      send(chunk(" world", { choices: [{ index: 0, delta: { content: " world" }, finish_reason: finish }],
         ...(mode === "missing-usage" ? {} : provider === "groq" ? { x_groq: { usage } } : { usage }) }));
       // Deliberately repeated cumulative usage must be accounted only once.
       if (mode !== "missing-usage") send(chunk("", { choices: [], usage }));
@@ -134,6 +135,30 @@ for (const provider of Object.keys(COMPATIBLE_PROVIDERS)) {
     assert.deepEqual(catalog.providers.filter(p => p.configured).map(p => p.id), [provider]);
     assert.ok(!JSON.stringify(catalog).includes("provider-key"));
     assert.equal((await f.get("/api/providers", "invalid")).status, 401);
+  });
+}
+
+for (const stream of [false, true]) {
+  test(`compatible provider max_tokens truncation (${stream ? "SSE" : "JSON"}) is returned, priced and never cached`, { timeout: 20000 }, async t => {
+    const f = await fixture(t, "groq", "length");
+    const response = await f.call(stream);
+    assert.equal(response.status, 200);
+    if (stream) {
+      const text = await response.text();
+      assert.doesNotMatch(text, /"error"/);
+      assert.match(text, /"finish_reason":"length"/);
+      assert.match(text, /rw_meta/);
+    } else {
+      const body = await response.json();
+      assert.equal(body.choices[0].message.content, "Hello world");
+      assert.equal(body.choices[0].finish_reason, "length");
+    }
+    const events = await logs(f, 1);
+    assert.equal(events[0].financials.provider_spend_usd, 0.000012);
+    // An identical request must go back to the provider, not replay the truncated answer.
+    const again = await f.call(false);
+    assert.equal((await again.json()).rw_meta.cache_hit, false);
+    assert.equal(f.requests.length, 2);
   });
 }
 

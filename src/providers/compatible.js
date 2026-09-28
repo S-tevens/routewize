@@ -31,9 +31,12 @@ export async function callCompatible(provider, args, { fetchImpl } = {}) {
   const raw = await clientFor(provider, args, fetchImpl).chat.completions.create(requestBody(args));
   const content = raw.choices?.[0]?.message?.content;
   if (typeof content !== "string" || (raw.choices?.[0]?.message?.tool_calls?.length ?? 0) > 0) throw new Error("Provider did not return supported text content");
-  if (raw.choices?.[0]?.finish_reason !== "stop") throw new Error("Provider response is incomplete or unsupported");
+  // A non-"stop" finish (e.g. "length" from max_tokens) is a normal, already-billed
+  // answer: return it with its real reason, but never cache it (see `complete`).
+  const finishReason = raw.choices?.[0]?.finish_reason;
+  if (typeof finishReason !== "string" || !finishReason) throw new Error("Provider response is incomplete or unsupported");
   const usage = normalizeUsage(provider, raw);
-  return { content, usage, raw: { ...raw, usage } };
+  return { content, usage, raw: { ...raw, usage }, finishReason, complete: finishReason === "stop" };
 }
 
 export async function* streamCompatible(provider, args, resultSink = {}, { fetchImpl } = {}) {
@@ -53,9 +56,12 @@ export async function* streamCompatible(provider, args, resultSink = {}, { fetch
       const { usage, x_groq, ...out } = chunk;
       if (out.choices?.length) yield out;
     }
-    if (finish !== "stop") throw new Error("Provider stream ended without a successful finish reason");
+    if (!finish) throw new Error("Provider stream ended without a finish reason");
     const usage = normalizeUsage(provider, usageRaw);
     resultSink.raw = { ...usageRaw, usage };
+    // Set before the usage chunk is yielded; the caller reads it there to decide caching.
+    resultSink.finishReason = finish;
+    resultSink.complete = finish === "stop";
     yield { id: last.id, object: "chat.completion.chunk", created: last.created,
       model: last.model ?? args.model, choices: [], usage };
   } finally {

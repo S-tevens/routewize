@@ -278,7 +278,8 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     const result = await callProvider(route.provider, callArgs);
 
     let currentEntry;
-    if (cacheConfig.enabled && !forceFlagship) {
+    // `complete === false` (e.g. cut off by max_tokens) must never be replayed to other requests.
+    if (cacheConfig.enabled && !forceFlagship && result.complete !== false) {
       currentEntry = cache.store(cacheNamespace, {
         embedding,
         promptText: embeddingText,
@@ -334,6 +335,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
         estimatedSavings,
         optimization: optimized.metrics,
         trace,
+        finishReason: result.finishReason,
       })
     );
   } catch (err) {
@@ -409,7 +411,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     let estimatedSavings = Math.max(0, baselineCost - actualCost);
     if (!isCompatibleProvider(route.provider)) usageGuard.recordSpend(customer.api_key, actualCost);
 
-    if (cacheConfig.enabled && !forceFlagship) {
+    if (cacheConfig.enabled && !forceFlagship && resultSink.complete !== false) {
       currentEntry = cache.store(cacheNamespace, { embedding, promptText: embeddingText, response: { content, usage }, model: route.model, ttlSeconds: cacheConfig.ttl_seconds ?? 86400 });
     }
 
@@ -479,13 +481,13 @@ function adviseTier(messages) {
   }
 }
 
-function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization, trace }) {
+function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization, trace, finishReason = "stop" }) {
   return {
     id: `chatcmpl-${uuidv4()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
     model: modelUsed,
-    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: finishReason }],
     usage: {
       prompt_tokens: usage.prompt_tokens,
       completion_tokens: usage.completion_tokens,
