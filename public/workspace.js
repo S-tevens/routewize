@@ -8,6 +8,7 @@ function showView(name) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  document.getElementById("currentViewLabel").textContent = { playground: "Playground", usage: "Usage & savings", proof: "Savings proof", guide: "Quickstart" }[name];
   if (name === "usage" && allDaily.length) renderForPeriod();
   if (name === "proof") window.dispatchEvent(new Event("proof-view"));
   if (name === "usage") window.dispatchEvent(new Event("overview-view"));
