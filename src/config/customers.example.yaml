@@ -78,16 +78,6 @@ customers:
     # Rules are evaluated top to bottom; first match wins. Anything that
     # doesn't match falls through to `default` above (no silent downgrade).
     routing:
-      # Optional paid classification AFTER successful non-cached responses.
-      # Advisory only: never changes routing or the answer. See README.
-      jev_shadow:
-        enabled: false
-        max_calls_per_day: 100 # per process; resets on restart/UTC midnight
-        criteria:
-          small: "Routine extraction, labeling or formatting with all facts provided."
-          standard: "Summarization or synthesis requiring moderate interpretation."
-          frontier: "Complex multi-step reasoning, high-stakes tasks, or uncertain capability."
-      # To enable, also add provider_keys.openrouter: "${DEMO_AGENT_CO_OPENROUTER_KEY}"
       rules:
         - name: "short-classification"
           match:

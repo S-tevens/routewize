@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { validateJevConfig } from "../router/jevShadow.js";
 
 let cachedConfig = null;
 let cachedPath = null;
@@ -52,7 +51,6 @@ function parseConfigFile(configPath) {
     if (!customer.api_key) {
       throw new Error(`Customer "${customer.name ?? "unknown"}" is missing api_key`);
     }
-    validateJevConfig(customer);
     byApiKey.set(customer.api_key, customer);
   }
 

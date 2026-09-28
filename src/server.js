@@ -17,7 +17,6 @@ import { watchCustomersConfig, loadCustomers } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
 import { scheduleNearMissVerification } from "./cache/nearMissVerification.js";
-import { scheduleJevShadow } from "./router/jevShadow.js";
 import { selectRoute } from "./router/rules.js";
 import { callOpenAI, streamOpenAI } from "./providers/openai.js";
 import { callAnthropic, streamAnthropic } from "./providers/anthropic.js";
@@ -306,7 +305,6 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       optimization: optimized.metrics,
     });
 
-    scheduleJevShadow(res, { customer, messages: optimized.messages, route, usageGuard, forceFlagship });
     scheduleNearMissVerification(res, { customer, cache, cacheNamespace, cacheResult, currentEntry, usageGuard });
     return res.json(
       buildResponse({
@@ -427,7 +425,6 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     writeSseChunk(res, { error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
 
-  if (completed) scheduleJevShadow(res, { customer, messages: optimized.messages, route, usageGuard, forceFlagship });
   if (completed) scheduleNearMissVerification(res, { customer, cache, cacheNamespace, cacheResult, currentEntry, usageGuard });
   return endSseStream(res);
 }
