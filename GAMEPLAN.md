@@ -47,6 +47,7 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 
 | Status | Task | Notes |
 |---|---|---|
+| ✅ Implemented (pending PR review) | Jev shadow classification | User-requested 2026-09-28. Default off; OpenRouter tier choice/probabilities/confidence after successful JSON/SSE misses. Logs paid overhead; never changes routing. 16 new offline tests (154 total); live validation pending a key. |
 | ✅ Done (merged PR #11) | Async near-miss cache verification | Opt-in (default off) margin/judge model, post-response YES/NO check, same-namespace promotion, paid judge events (including rejection/error), spend-cap check and overhead accounting. Existing matching preserved and near-duplicate regression covered; unit + offline HTTP tests cover both providers and JSON/SSE. Dry-run reports reject enabled configs. Reviewed pre-merge; no real-provider smoke test yet. |
 | ✅ Done | CI pipeline (`npm test` on every PR) | `.github/workflows/test.yml` |
 | ✅ Done | Verify model IDs are still live | Confirmed against provider docs 2026-09-12: `claude-3-5-sonnet-20241022` and `claude-3-5-haiku-20241022` are **retired** (would fail live). Updated `customers.example.yaml`/`customers.yaml` to `claude-sonnet-4-6` / `claude-haiku-4-5-20251001`. `gpt-4o`/`gpt-4o-mini` confirmed still active. See README's "Pricing data" section. Re-check periodically — providers retire models on their own schedule. |

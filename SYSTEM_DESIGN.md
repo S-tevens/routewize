@@ -234,3 +234,25 @@ In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the
 7. **Queryable request log merged (PR #2).** SQLite indexes the authoritative JSONL log incrementally; stats uses daily rollups and financial overview uses customer/date indexes. Backfill/rebuild still blocks synchronously, and the separate evaluation-receipt log remains a full scan. Shared cache infrastructure remains deferred.
 
 None of this is needed to serve the current single pilot customer scenario. It becomes necessary in roughly the order listed as soon as there's more than one paying customer or any real production load.
+
+
+## 10. Jev shadow classification
+
+`src/router/jevShadow.js` schedules an optional paid classification after the
+response finish event for successful JSON/SSE cache misses. Live selection in
+`rules.js` remains deterministic. The three customer-defined tier descriptions
+produce a validated choice/probability distribution; this is advisory evidence,
+not automatic routing. Configuration is validated on load and hot reload.
+
+One in-flight call per customer, a daily call count, the existing spend gate,
+and a five-second timeout bound work. Unknown cost suspends further shadow
+calls for that customer for the UTC day. These guards are in-memory only.
+Known reported cost is logged as negative routing savings with zero baseline,
+so existing reporting includes the additional spend. Events omit prompt text
+and keys and appear in recent stats. Failed/disconnected responses, cache hits,
+forced flagship and oversized/non-text inputs are excluded. See README for
+configuration, privacy implications, and the live-verification limitation.
+
+Behavior change: enabling this opt-in adds paid post-response calls and financial
+log events; dry-run rejects enabled configs to avoid excluding their cost.
+It does not alter existing cache matching or model-selection rules.

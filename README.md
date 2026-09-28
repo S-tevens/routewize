@@ -281,3 +281,48 @@ Environment placeholders are resolved in parsed YAML **string values**, includin
 `npm test` includes `test/streamingIntegration.test.js`. It starts local synthetic OpenAI/Anthropic HTTP endpoints and an isolated copy of the real proxy, using the installed SDK adapters, fake keys, mock embeddings and static pricing. It checks that chunks arrive before upstream completion, final usage and `rw_meta`, configured-rate spend (including Anthropic cached input), cache reuse by streaming/non-streaming requests, clean JSON 502s before streaming, and SSE errors after partial output. Failed partial answers must not enter the cache. Temporary configs, logs, processes and listeners are cleaned up.
 
 These tests require local loopback sockets but no internet, provider credentials or paid calls. They do not certify current provider behavior; the live streaming smoke test remains pending real keys.
+
+
+## Jev shadow classification (optional, paid)
+
+Routewize can ask `typesafe/jev-1.13` for a **small / standard / frontier**
+classification through OpenRouter's Decisions API. This is shadow measurement:
+existing customer rules still select the model and no Jev answer changes a route,
+cache entry, or response. It does not prove that a cheaper model will pass your
+quality requirements. Calibrate criteria and evaluate actual model outputs on
+labeled customer tasks before considering automatic routing.
+
+1. Add `provider_keys.openrouter: "${DEMO_AGENT_CO_OPENROUTER_KEY}"` to the
+   customer's local YAML and put their OpenRouter key in that environment variable.
+2. Set `routing.jev_shadow.enabled: true`. Configure the three `criteria`
+   descriptions for the customer's model capabilities (example in the sample YAML).
+3. Send normal `/v1/chat/completions` requests. After a successful non-cached
+   JSON/SSE response finishes, the optimized text messages are sent to OpenRouter
+   and TypeSafe. Enabling this feature opts that customer's prompts into this
+   additional data processor. No key is bundled and disabled means no calls.
+4. Read `jev_shadow` entries in authenticated `/api/stats` → `recent` (latest 25
+   events) or the request log. Fields include `choice`, `probabilities`,
+   `confidence`, `actual_route`, `latency_ms`, `outcome`, and `cost_unknown`.
+   Confidence summarizes the distribution; it is not the winning probability or
+   a guarantee of downstream model quality. Prompt text and keys are not logged.
+
+Known cost comes from `usage.cost` and is included in provider spend, deducted
+from routing savings, and included as overhead in the live comparison. Invalid
+answers still incur their reported cost. Failed/unpriced calls log **unknown**
+cost and suspend further shadow calls for that customer until the next UTC day
+(or process restart). They are not reported as free; aggregate known savings
+cannot represent an all-in net result when spend is unknown.
+
+One call per customer may be in flight, with a five-second timeout, no retries,
+and at most `max_calls_per_day` calls (default 100). Excess work is skipped, not
+queued. The existing daily spend cap is checked after foreground spend; it is a
+best-effort gate, not a reservation or a strict billing limit. All guards are
+per-process and reset on restart. Cache hits, forced-flagship requests,
+non-text messages, and serialized message arrays over 32,000 characters are
+skipped. Background work is not durable. Failed/disconnected foreground requests
+do not schedule it. Dry runs reject enabled shadow configs, because their
+zero-provider-call forecasts cannot include the real classification overhead.
+
+This integration uses the [OpenRouter Decisions API tutorial](https://openrouter.ai/blog/tutorials/how-to-use-jev/).
+Offline fixtures test the API contract; live Jev classification quality and
+provider success still require a real OpenRouter key. No savings claim is made.
