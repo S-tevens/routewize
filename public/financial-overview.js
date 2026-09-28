@@ -1,7 +1,7 @@
 let overviewController;
 const preciseMoney = (value) => value == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: Math.abs(value) > 0 && Math.abs(value) < 1 ? 6 : 2 }).format(value);
 function clearFinancialOverview() {
-  for (const id of ["providerSpend", "potentialSavings", "costSaved", "moneyRequests", "evaluationSpend"]) $(id).textContent = "—";
+  for (const id of ["providerSpend", "potentialSavings", "costSaved", "moneyRequests", "evaluationSpend", "tokensSaved"]) $(id).textContent = "—";
   $("providerSpendNote").textContent = "Waiting for recorded provider usage.";
   $("potentialSavingsNote").textContent = "Run Savings proof to measure the difference.";
   $("costSavedNote").textContent = "Avoided costs estimated from gateway logs.";
@@ -45,6 +45,15 @@ async function loadFinancialOverview() {
     $("liveComparisonNote").textContent = data.live_priced_requests ? `${data.live_priced_requests} gateway requests across ${liveDaily.length} days. Lower cost is better.` : "What your default model would have cost vs. what gateway requests actually cost, by day.";
     $("liveComparisonBadge").textContent = data.live_priced_requests ? "Live" : "Waiting for traffic";
     drawCostComparison("liveCostComparison", "liveComparisonEmpty", liveDaily);
+    // Daily context estimates use the same UTC calendar window as financials.
+    const statsRes = await fetch("/api/stats", { headers: { Authorization: `Bearer ${realKey}` }, signal: controller.signal });
+    if (!statsRes.ok) throw new Error("Token statistics unavailable. Financial figures loaded.");
+    const stats = await statsRes.json();
+    const days = Number($("overviewDays").value), now = new Date();
+    const start = days ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days + 1)).toISOString().slice(0, 10) : "";
+    const end = now.toISOString().slice(0, 10);
+    const daily = stats.daily.filter(day => day.date >= start && day.date <= end);
+    $("tokensSaved").textContent = daily.reduce((sum, day) => sum + (day.tokensRemoved ?? 0), 0).toLocaleString();
   } catch (err) {
     if (err.name !== "AbortError") $("moneyStatus").textContent = err.message;
   }
@@ -69,25 +78,25 @@ function drawCostComparison(svgId, emptyId, daily) {
   const y = (n) => bottom - (n / max) * (bottom - top);
   for (let i = 0; i <= 4; i++) {
     const value = max * i / 4;
-    element("line", { x1: left, x2: right, y1: y(value), y2: y(value), stroke: "#35412c", "stroke-dasharray": "3 7" });
-    element("text", { x: left - 12, y: y(value) + 4, fill: "#bcc8b1", "font-size": 12, "text-anchor": "end" }, preciseMoney(value));
+    element("line", { x1: left, x2: right, y1: y(value), y2: y(value), stroke: "#d6e0d1", "stroke-dasharray": "3 7" });
+    element("text", { x: left - 12, y: y(value) + 4, fill: "#65735f", "font-size": 12, "text-anchor": "end" }, preciseMoney(value));
   }
   if (daily.length === 1) {
-    for (const [index, key, color] of [[0, "baseline", "#b1a8ed"], [1, "optimized", "#a8e56f"]]) {
+    for (const [index, key, color] of [[0, "baseline", "#889c7d"], [1, "optimized", "#4b9247"]]) {
       const value = daily[0][key], x = left + 135 + index * 155;
       element("rect", { x, y: y(value), width: 100, height: Math.max(0, bottom - y(value)), rx: 8, fill: color });
       element("text", { x: x + 50, y: y(value) - 8, fill: color, "font-size": 14, "text-anchor": "middle" }, preciseMoney(value));
     }
-    element("text", { x: (left + right) / 2, y: 282, fill: "#bcc8b1", "font-size": 12, "text-anchor": "middle" }, daily[0].date);
+    element("text", { x: (left + right) / 2, y: 282, fill: "#65735f", "font-size": 12, "text-anchor": "middle" }, daily[0].date);
   } else {
     const first = Date.parse(daily[0].date), last = Date.parse(daily.at(-1).date);
     const x = (d) => left + (Date.parse(d.date) - first) / (last - first) * (right - left);
-    for (const [key, color] of [["baseline", "#b1a8ed"], ["optimized", "#a8e56f"]]) {
+    for (const [key, color] of [["baseline", "#889c7d"], ["optimized", "#4b9247"]]) {
       const points = daily.map((d) => `${x(d)},${y(d[key])}`).join(" ");
       element("polyline", { points, fill: "none", stroke: color, "stroke-width": key === "baseline" ? 2 : 3, "stroke-dasharray": key === "baseline" ? "6 6" : "none", "stroke-linejoin": "round" });
       daily.forEach((d) => element("circle", { cx: x(d), cy: y(d[key]), r: 3, fill: color }));
     }
-    [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])].forEach((i) => element("text", { x: x(daily[i]), y: 282, fill: "#bcc8b1", "font-size": 12, "text-anchor": i === 0 ? "start" : i === daily.length - 1 ? "end" : "middle" }, daily[i].date));
+    [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])].forEach((i) => element("text", { x: x(daily[i]), y: 282, fill: "#65735f", "font-size": 12, "text-anchor": i === 0 ? "start" : i === daily.length - 1 ? "end" : "middle" }, daily[i].date));
   }
 }
 $("overviewDays").addEventListener("change", loadFinancialOverview);
@@ -95,4 +104,4 @@ $("connectBtn").addEventListener("click", loadFinancialOverview);
 window.addEventListener("overview-view", loadFinancialOverview);
 window.addEventListener("proof-complete", loadFinancialOverview);
 $("apiKey").addEventListener("input", () => { overviewController?.abort(); clearFinancialOverview(); $("moneyStatus").textContent = "Connect this key to load its financial evidence."; });
-if (location.hash === "#usage") loadFinancialOverview();
+if (!$("usageView").hidden) loadFinancialOverview();

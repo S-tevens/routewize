@@ -1,6 +1,6 @@
 const viewNames = ["playground", "usage", "guide", "proof"];
 function showView(name) {
-  if (!viewNames.includes(name)) name = "playground";
+  if (!viewNames.includes(name)) name = "usage";
   for (const view of viewNames)
     document.getElementById(`${view}View`).hidden = view !== name;
   document.querySelectorAll("[data-view]").forEach((button) => {
@@ -8,7 +8,7 @@ function showView(name) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
-  document.getElementById("currentViewLabel").textContent = { playground: "Playground", usage: "Usage & savings", proof: "Savings proof", guide: "Quickstart" }[name];
+  document.getElementById("currentViewLabel").textContent = { playground: "Playground", usage: "Overview", proof: "Savings proof", guide: "Quickstart" }[name];
   if (name === "usage" && allDaily.length) renderForPeriod();
   if (name === "proof") window.dispatchEvent(new Event("proof-view"));
   if (name === "usage") window.dispatchEvent(new Event("overview-view"));

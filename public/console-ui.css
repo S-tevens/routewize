@@ -105,3 +105,79 @@ textarea:hover, .proof-input:hover { border-color: #a7b3a9; }
   .editor-card, .result-card, .proof-report { padding: 18px; }
   textarea { font-size: 16px; }
 }
+
+/* Savings-first overview, with a soft botanical palette. */
+body { background: #e4e9e1; }
+.app-shell { margin: 24px; min-height: calc(100vh - 48px); border: 1px solid #f6fbf1; border-radius: 26px; background: linear-gradient(130deg, #f0f6e9, #e1ecdd); overflow: hidden; }
+.sidebar { position: static; width: auto; padding: 22px 28px 12px; flex-direction: row; align-items: center; justify-content: space-between; gap: 24px; background: transparent; border: 0; }
+.sidebar .brand-logo { margin: 0; mix-blend-mode: multiply; }
+.workspace-label, .nav-label, .sidebar-footer { display: none; }
+.workspace-nav { flex-direction: row; padding: 5px; border-radius: 30px; background: #ffffff85; gap: 4px; }
+.workspace-nav button { border-radius: 24px; padding: 10px 17px; min-height: 38px; font-size: 12px; }
+.workspace-nav button.active { background: #18241b; border-color: #18241b; color: #fff; }
+.workspace-nav button:hover:not(.active) { background: #e6efdf; }
+.workspace-nav svg { display: none; }
+.topbar { margin: 0; min-height: 0; padding: 8px 30px 18px; background: transparent; border: 0; }
+.keybox { background: #ffffffa6; border-color: #d9e3d3; border-radius: 20px; }
+.keybox button { border-radius: 16px; }
+.wrap { margin: 0; max-width: none; padding: 24px 28px 40px; }
+.page-intro { margin-bottom: 24px; align-items: end; }
+.page-intro h1 { font-size: 29px; font-weight: 500; }
+.section-kicker { color: #66775d; }
+.money-overview { margin: 0 0 20px; border-bottom: 0; padding-bottom: 0; }
+.money-heading h2 { font-size: 14px; font-weight: 500; }
+.money-heading select { background: #ffffffb0; border-color: #fff; border-radius: 20px; padding: 8px 14px; }
+.money-layout { grid-template-columns: 1fr; gap: 18px; margin-top: 16px; }
+.money-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.money-secondary { display: contents; }
+.money-card, .money-card.saved, .money-card.spend, .money-card.potential { background: #ffffff92; border: 1px solid #ffffffdc; border-radius: 18px; padding: 20px; }
+.money-card.saved { background: #d0e6bf; border-color: #e4f3d9; }
+.money-card h3, .money-card.saved h3 { font-size: 12px; margin-bottom: 16px; gap: 5px; }
+.money-card.saved > strong, .money-card > strong, .money-card.spend > strong, .money-card.potential > strong { font-size: 32px; font-weight: 500; color: #233b22; letter-spacing: -.04em; }
+.money-card p, .money-card.saved p { font-size: 10px; color: #5b6b55; }
+.money-badge { border: 0; background: #e6eddf; color: #5b6b55; font-size: 9px; border-radius: 15px; }
+.money-card.saved .money-badge { background: #e5f2da; border: 0; }
+.money-foot { grid-column: 1 / -1; display: flex; gap: 26px; padding: 8px 4px 0; }
+.money-foot > div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.money-foot strong { font-size: 16px; margin: 0; }
+.money-foot small { font-size: 10px; }
+.money-charts { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+.money-chart { background: #ffffff80; color: #233323; border: 1px solid #ffffffdc; border-radius: 20px; padding: 22px; min-height: 300px; }
+.money-chart-heading h2 { font-weight: 500; font-size: 15px; }
+.money-chart-heading > span { color: #617557; border: 0; background: #e3edda; border-radius: 20px; }
+.money-chart > p, .money-chart .chart-caption, .chart-legend { color: #64755b; }
+.money-chart #comparisonEmpty, .money-chart #liveComparisonEmpty { flex: 1; display: grid; place-content: center; min-height: 170px; padding: 24px; margin: 14px 0; border: 1px dashed #ccd9c3; background: #ffffff35; color: #65745e; font-size: 12px; line-height: 1.8; border-radius: 14px; text-align: center; }
+.legend-baseline { background: #889c7d; }
+.legend-candidate { background: #4b9247; }
+.money-disclosure { font-size: 10px; margin-top: 16px; }
+.empty { background: #ffffff65; border-color: #ffffffb0; border-radius: 18px; padding: 24px; }
+.empty-mark { display: none; }
+.empty h2 { font-size: 16px; }
+.empty p { font-size: 12px; }
+.empty .privacy { margin-top: 10px; font-size: 10px; }
+.editor-card, .result-card, .proof-report, .guide-card, .panel, .activity { border-radius: 18px; border-color: #fff; background: #ffffffc4; }
+.tile { border-color: #fff; border-radius: 18px; }
+@media (max-width: 1050px) {
+  .money-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .money-charts { grid-template-columns: 1fr; }
+  .sidebar { gap: 12px; padding-inline: 22px; }
+  .workspace-nav button { padding-inline: 12px; }
+}
+@media (max-width: 760px) {
+  .app-shell { margin: 8px; border-radius: 18px; min-height: calc(100vh - 16px); }
+  .sidebar { align-items: flex-start; flex-direction: column; padding: 18px 14px 8px; }
+  .sidebar .brand-logo { margin: 0 0 8px; }
+  .workspace-nav { max-width: 100%; gap: 0; padding: 4px; }
+  .workspace-nav button { padding: 9px 12px; font-size: 10px; }
+  .topbar { padding: 8px 16px; }
+  .wrap { padding: 22px 14px; }
+  .page-intro { align-items: flex-start; }
+  .page-intro h1 { font-size: 25px; }
+  .money-heading { flex-direction: row; align-items: center; }
+  .money-heading label { font-size: 11px; }
+  .money-card, .money-card.saved, .money-card.spend, .money-card.potential { padding: 15px; }
+  .money-card.saved > strong, .money-card > strong, .money-card.spend > strong, .money-card.potential > strong { font-size: 26px; }
+  .money-foot { flex-direction: column; gap: 10px; }
+  .money-foot > div + div { padding-left: 0; border-left: 0; }
+  .money-chart { padding: 18px; }
+}
