@@ -37,6 +37,19 @@ customers:
     provider_keys:
       openai: "${DEMO_AGENT_CO_OPENAI_KEY}"
       anthropic: "${DEMO_AGENT_CO_ANTHROPIC_KEY}"
+      # Optional integrations; uncomment only providers you use.
+      # gemini: "${DEMO_AGENT_CO_GEMINI_KEY}"
+      # openrouter: "${DEMO_AGENT_CO_OPENROUTER_KEY}"
+      # groq: "${DEMO_AGENT_CO_GROQ_KEY}"
+      # mistral: "${DEMO_AGENT_CO_MISTRAL_KEY}"
+      # deepseek: "${DEMO_AGENT_CO_DEEPSEEK_KEY}"
+      # together: "${DEMO_AGENT_CO_TOGETHER_KEY}"
+      # fireworks: "${DEMO_AGENT_CO_FIREWORKS_KEY}"
+      # xai: "${DEMO_AGENT_CO_XAI_KEY}"
+      # cerebras: "${DEMO_AGENT_CO_CEREBRAS_KEY}"
+      # New-provider default/routes also REQUIRE evaluation.pricing entries
+      # keyed "provider/exact-model-id", even with evaluation.enabled: false.
+      # See PROVIDERS.md for setup, supported scope, and pricing caveats.
 
     # Used when no routing rule matches, and when a request forces "flagship".
     default:

@@ -3,12 +3,11 @@ import { createHash } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { prepareEvaluation, runEvaluation } from "./evaluate.js";
-import { callOpenAI } from "../providers/openai.js";
-import { callAnthropic } from "../providers/anthropic.js";
+import { evaluationProviders } from "../providers/registry.js";
 
 const receiptFile = fileURLToPath(new URL("../../logs/evaluations.log", import.meta.url));
 const digest = (s) => createHash("sha256").update(s).digest("hex");
-export function evaluationRouter({ providers = { openai: callOpenAI, anthropic: callAnthropic }, saveReceipt = (receipt) => appendFile(receiptFile, JSON.stringify(receipt) + "\n", { mode: 0o600 }) } = {}) {
+export function evaluationRouter({ providers = evaluationProviders, saveReceipt = (receipt) => appendFile(receiptFile, JSON.stringify(receipt) + "\n", { mode: 0o600 }) } = {}) {
   const router = express.Router();
   const jobs = new Map();
   const active = new Set();

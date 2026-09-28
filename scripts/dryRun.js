@@ -1,3 +1,4 @@
+import { estimateRouteCost } from "../src/logging/routeCost.js";
 import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
@@ -8,7 +9,7 @@ import { loadCustomers } from "../src/config/loadConfig.js";
 import { createEmbeddingProvider } from "../src/cache/embeddings.js";
 import { SemanticCache } from "../src/cache/semanticCache.js";
 import { selectRoute } from "../src/router/rules.js";
-import { estimateCost, estimateTokens, loadRemotePricing } from "../src/logging/pricing.js";
+import { estimateTokens, loadRemotePricing } from "../src/logging/pricing.js";
 
 // Simulates the proxy over a customer's historical request log WITHOUT
 // calling any real provider — this is the "point 6, step 3" proof-of-concept
@@ -78,7 +79,7 @@ async function main() {
     const completionTokens = record.usage?.completion_tokens ?? Math.round(promptTokens * 0.6);
 
     const baselineModel = record.model_requested ?? customer.default.model;
-    const baselineCost = estimateCost(baselineModel, promptTokens, completionTokens);
+    const baselineCost = estimateRouteCost(customer, { ...customer.default, model: baselineModel }, promptTokens, completionTokens);
     baselineCostTotal += baselineCost;
 
     const cacheConfig = customer.cache ?? { enabled: false };
@@ -107,7 +108,7 @@ async function main() {
           routedToCheaper++;
           stats.routed++;
         }
-        optimizedCost = estimateCost(route.model, promptTokens, completionTokens);
+        optimizedCost = estimateRouteCost(customer, route, promptTokens, completionTokens);
         cache.store(customer.api_key, {
           embedding,
           promptText,
@@ -122,7 +123,7 @@ async function main() {
         routedToCheaper++;
         stats.routed++;
       }
-      optimizedCost = estimateCost(route.model, promptTokens, completionTokens);
+      optimizedCost = estimateRouteCost(customer, route, promptTokens, completionTokens);
     }
 
     optimizedCostTotal += optimizedCost;

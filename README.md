@@ -295,3 +295,13 @@ Environment placeholders are resolved in parsed YAML **string values**, includin
 `npm test` includes `test/streamingIntegration.test.js`. It starts local synthetic OpenAI/Anthropic HTTP endpoints and an isolated copy of the real proxy, using the installed SDK adapters, fake keys, mock embeddings and static pricing. It checks that chunks arrive before upstream completion, final usage and `rw_meta`, configured-rate spend (including Anthropic cached input), cache reuse by streaming/non-streaming requests, clean JSON 502s before streaming, and SSE errors after partial output. Failed partial answers must not enter the cache. Temporary configs, logs, processes and listeners are cleaned up.
 
 These tests require local loopback sockets but no internet, provider credentials or paid calls. They do not certify current provider behavior; the live streaming smoke test remains pending real keys.
+
+
+## Additional model providers
+
+Routewize supports text chat and streaming adapters for **Gemini, OpenRouter,
+Groq, Mistral, DeepSeek, Together AI, Fireworks, xAI, and Cerebras**, alongside
+OpenAI and Anthropic. See [PROVIDERS.md](PROVIDERS.md) for credentials, required
+provider-qualified pricing, supported features, and offline-vs-live validation.
+`GET /api/providers` (customer authentication required) lists supported provider
+IDs and whether that customer has configured a key; it never returns secrets.
