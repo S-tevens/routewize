@@ -18,6 +18,7 @@ import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
 import { scheduleNearMissVerification } from "./cache/nearMissVerification.js";
 import { selectRoute } from "./router/rules.js";
+import { decide } from "./decision/index.js";
 import { callOpenAI, streamOpenAI } from "./providers/openai.js";
 import { callAnthropic, streamAnthropic } from "./providers/anthropic.js";
 import { estimateCost, loadRemotePricing } from "./logging/pricing.js";
@@ -152,6 +153,8 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
 
   const promptText = messages.map((m) => m.content).join("\n");
   const route = selectRoute({ customer, promptText, forceFlagship });
+  const decision = customer.routing?.decision_engine?.enabled === true ? adviseTier(messages) : null;
+  const trace = req.get("x-routewize-trace") === "1" ? { route: { matched_rule: route.matchedRule, why: route.why }, decision } : undefined;
   const cacheConfig = customer.cache ?? { enabled: false };
 
   // Cache entries are namespaced per (customer, requested model, generation
@@ -212,6 +215,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
           savings_breakdown: { cache_usd: savedCost, routing_usd: 0, prompt_cache_usd: 0 },
           cost_estimate: { baseline_usd: defaultModelCost, actual_usd: 0 },
           optimization: optimized.metrics,
+          ...(decision ? { decision } : {}),
         });
 
         if (isStream) {
@@ -232,12 +236,12 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
               completion_tokens: entry.response.usage.completion_tokens,
               total_tokens: entry.response.usage.prompt_tokens + entry.response.usage.completion_tokens,
             },
-            rw_meta: { cache_hit: true, matched_rule: null, estimated_savings_usd: Number(savedCost.toFixed(6)), optimization: optimized.metrics },
+            rw_meta: { cache_hit: true, matched_rule: null, estimated_savings_usd: Number(savedCost.toFixed(6)), optimization: optimized.metrics, ...(trace ? { trace } : {}) },
           });
           return endSseStream(res);
         }
 
-        return res.json(buildResponse({ modelUsed: entry.model, content: entry.response.content, usage: entry.response.usage, cacheHit: true, matchedRule: null, estimatedSavings: savedCost, optimization: optimized.metrics }));
+        return res.json(buildResponse({ modelUsed: entry.model, content: entry.response.content, usage: entry.response.usage, cacheHit: true, matchedRule: null, estimatedSavings: savedCost, optimization: optimized.metrics, trace }));
       }
     }
 
@@ -262,7 +266,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     const callArgs = { apiKey: providerKey, model: route.model, messages: optimized.messages, temperature, max_tokens };
 
     if (isStream) {
-      return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship });
+      return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship, decision, trace });
     }
 
     const result = route.provider === "anthropic" ? await callAnthropic(callArgs) : await callOpenAI(callArgs);
@@ -299,10 +303,12 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       model_used: route.model,
       cache_hit: false,
       matched_rule: route.matchedRule,
+      route_why: route.why,
       estimated_savings: estimatedSavings,
       savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
       cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
+      ...(decision ? { decision } : {}),
     });
 
     scheduleNearMissVerification(res, { customer, cache, cacheNamespace, cacheResult, currentEntry, usageGuard });
@@ -315,6 +321,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
         matchedRule: route.matchedRule,
         estimatedSavings,
         optimization: optimized.metrics,
+        trace,
       })
     );
   } catch (err) {
@@ -344,7 +351,7 @@ function endSseStream(res) {
 // gets a clean 502 JSON response instead of an SSE payload. Once streaming
 // has visibly started, a later failure can only be reported as an in-stream
 // error event, since the response status/headers are already sent.
-async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship }) {
+async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship, decision, trace }) {
   const resultSink = {};
   const generator = route.provider === "anthropic" ? streamAnthropic(callArgs, resultSink) : streamOpenAI(callArgs, resultSink);
   const iterator = generator[Symbol.asyncIterator]();
@@ -399,13 +406,15 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
       model_used: route.model,
       cache_hit: false,
       matched_rule: route.matchedRule,
+      route_why: route.why,
       estimated_savings: estimatedSavings,
       savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
       cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
+      ...(decision ? { decision } : {}),
     });
 
-    chunk.rw_meta = { cache_hit: false, matched_rule: route.matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization: optimized.metrics };
+    chunk.rw_meta = { cache_hit: false, matched_rule: route.matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization: optimized.metrics, ...(trace ? { trace } : {}) };
     writeSseChunk(res, chunk);
   };
 
@@ -429,7 +438,18 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
   return endSseStream(res);
 }
 
-function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization }) {
+// Advisory only and fail-open: a decision-engine fault must never cost the
+// customer their answer.
+function adviseTier(messages) {
+  try {
+    return decide(messages);
+  } catch (err) {
+    console.error("Decision engine failed; continuing without advice:", err.message);
+    return null;
+  }
+}
+
+function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization, trace }) {
   return {
     id: `chatcmpl-${uuidv4()}`,
     object: "chat.completion",
@@ -441,7 +461,7 @@ function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estim
       completion_tokens: usage.completion_tokens,
       total_tokens: usage.prompt_tokens + usage.completion_tokens,
     },
-    rw_meta: { cache_hit: cacheHit, matched_rule: matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization },
+    rw_meta: { cache_hit: cacheHit, matched_rule: matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization, ...(trace ? { trace } : {}) },
   };
 }
 

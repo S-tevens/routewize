@@ -78,6 +78,14 @@ customers:
     # Rules are evaluated top to bottom; first match wins. Anything that
     # doesn't match falls through to `default` above (no silent downgrade).
     routing:
+      # Optional, free, fully local advisory engine: records which capability
+      # tier (quick/standard/high/premium) each request appears to need and
+      # why. It never changes the model -- the rules below still decide. No
+      # network calls; logs get the decision but never prompt text. Clients
+      # can see it (plus the matched rule's reason) with the request header
+      # `x-routewize-trace: 1`.
+      decision_engine:
+        enabled: false
       rules:
         - name: "short-classification"
           match:

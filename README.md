@@ -216,6 +216,20 @@ Note: tokenscost.com's model `id` strings don't reliably match the real provider
 
 Rules live in each customer's `routing.rules` list in `customers.yaml`. First matching rule wins; anything unmatched — or any request sent with `x-force-model: flagship` — falls through to that customer's `default` model. See the example config for the rule shape (`max_prompt_tokens`, `keywords`).
 
+### Route trace
+
+Every routed request records *why* it was routed (`route_why` in the request log): the token budget and keyword that matched, "no routing rule matched", or "client forced the flagship model". Only the customer's own configured keywords and numbers appear — never prompt text. Send `x-routewize-trace: 1` to get the same reason back in `rw_meta.trace` (JSON responses, the cache-hit chunk, or the final streamed chunk).
+
+### Decision engine (advisory, local, opt-in)
+
+`routing.decision_engine.enabled: true` turns on routewize's own decision engine (`src/decision/`). For each request it answers a fixed set of typed questions — task kind (choice with a probability per option), difficulty (0–3 score with a distribution), needs deep reasoning and cheaper-model-sufficient (probabilities) — and a deterministic composer turns those answers into a suggested capability tier (`quick`/`standard`/`high`/`premium`) plus a one-line reason, e.g. `code (0.95) · difficulty 1.88/3 · deep 0.49 · cheap-ok 0.19 → high`.
+
+- **Advisory only.** It never changes the model; the customer's rules still decide. The suggestion goes into the request log (`decision`) and, with the trace header, `rw_meta.trace.decision`.
+- **No third-party calls, no cost.** The current backend (`rules-v1`) is lexical and structural signals computed in-process (sub-millisecond). The backend is pluggable: anything returning answers that pass `validateAnswers()` in `src/decision/contract.js` can replace it — the planned path is a self-hosted model trained on routewize's own labelled routing outcomes.
+- **Fail-open.** An engine error is logged and the request proceeds without advice.
+- **Privacy.** The decision record holds labels and numbers only; prompt text is never logged.
+- Uncertain difficulty (peak probability below the score threshold) uses a cumulative-probability rule, and task-kind floors (`code`/`reason` ≥ standard) apply only when the task-kind answer is confident. Policy knobs live in `DEFAULT_POLICY` in `src/decision/composer.js`.
+
 ## Rate limits and spend caps
 
 Two independent, optional protections per customer (`rate_limit` in `customers.yaml`), against a fast-loop bug and a slow leaked-key drip respectively:
