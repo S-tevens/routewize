@@ -81,6 +81,9 @@ async function main() {
     const baselineCost = estimateCost(baselineModel, promptTokens, completionTokens);
     baselineCostTotal += baselineCost;
 
+    if (customer.routing?.jev_shadow?.enabled === true) {
+      throw new Error("Dry run cannot simulate paid Jev shadow classification. Set routing.jev_shadow.enabled: false for a baseline-only report.");
+    }
     const cacheConfig = customer.cache ?? { enabled: false };
     if (cacheConfig.enabled && cacheConfig.near_miss_verification?.enabled === true) {
       throw new Error("Dry run cannot simulate paid async near-miss verification. Use a separate config with cache.near_miss_verification.enabled: false; its report represents only that disabled baseline.");
