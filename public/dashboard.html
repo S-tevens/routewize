@@ -9,11 +9,12 @@
 <link rel="stylesheet" href="/reference-ui.css">
 </head>
 <body>
+<a class="skip-link" href="#mainContent">Skip to content</a>
 <div class="app-shell">
 
 <header class="topbar">
   <a class="brand brand-logo" href="#playground" aria-label="Routewize playground">
-    <img src="/routewize-logo.png" width="1600" height="548" alt="Routewize">
+    <img src="/routewize-logo.png" width="2172" height="724" alt="Routewize">
   </a>
 
   <div class="toolbar">
@@ -22,13 +23,13 @@
       <span id="statusLabel">Not connected</span>
     </div>
     <div class="keybox">
-      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewize API key" aria-label="routewize API key">
+      <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="Your routewize API key" aria-label="routewize API key">
       <button id="connectBtn">Connect</button>
     </div>
   </div>
 </header>
 
-<main class="wrap">
+<main class="wrap" id="mainContent" tabindex="-1">
 
   <nav class="workspace-nav" aria-label="Workspace">
     <button class="active" data-view="playground" aria-pressed="true">Playground</button>
@@ -125,7 +126,7 @@
   </div>
 
   <section class="money-overview" aria-label="Costs and savings">
-    <div class="money-heading"><h2>Spend a little wiser.</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
+    <div class="money-heading"><h2>Your cost summary</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
     <p id="moneyStatus" class="field-help" role="status">Connect your Routewize key to load financial evidence.</p>
     <div class="money-layout">
       <div class="money-cards">
