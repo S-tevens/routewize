@@ -1,0 +1,201 @@
+/* Console layout. Existing view IDs and data remain owned by workspace.js. */
+:root { --bg: #f8faf9; --text: #202824; --muted: #69736e; --line: #e2e7e4; --line-soft: #edf0ee; }
+body { font-size: 14px; background: var(--bg); }
+.app-shell { max-width: none; margin: 0; padding: 0; background: var(--bg); overflow: visible; }
+.sidebar { position: fixed; inset: 0 auto 0 0; width: 224px; padding: 28px 18px 20px; background: #fff; border-right: 1px solid var(--line); display: flex; flex-direction: column; z-index: 3; }
+.sidebar .brand-logo { margin: 0 4px 32px; }
+.workspace-label { display: flex; align-items: center; gap: 10px; padding: 12px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; font-weight: 600; }
+.workspace-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: #eef3e8; color: #536b31; }
+.workspace-label small { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; color: var(--muted); }
+.nav-label, .provider-label { font-size: 10px; font-weight: 600; letter-spacing: .09em; color: #7b857e; }
+.nav-label { margin: 30px 10px 12px; }
+.workspace-nav { display: flex; flex-direction: column; align-items: stretch; gap: 5px; border: 0; margin: 0; overflow: visible; }
+.workspace-nav button { display: flex; align-items: center; gap: 11px; padding: 11px 12px; min-height: 42px; border: 1px solid transparent; border-radius: 7px; text-align: left; font-size: 12px; }
+.workspace-nav button.active { background: #eef4e6; color: #344c23; border-color: #e3ecd7; }
+.workspace-nav button:hover { background: #f3f5f2; }
+.workspace-nav svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.sidebar-footer { margin-top: auto; padding: 24px 10px 0; }
+.sidebar-footer p { font-size: 12px; margin: 8px 0 24px; }
+.sidebar-footer p span { padding: 0 6px; color: #a3aaa5; }
+.sidebar-footer a { display: flex; justify-content: space-between; font-size: 12px; text-decoration: none; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+.topbar { margin-left: 224px; min-height: 76px; padding: 15px 32px; border-bottom: 1px solid var(--line); background: #fff; }
+.console-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.console-label span { margin: 0 12px; color: #c1c7c3; }
+.console-label strong { font-weight: 500; color: var(--text); }
+.toolbar { gap: 16px; }
+.keybox { border-radius: 7px; padding: 4px 4px 4px 12px; }
+.keybox input { width: 165px; }
+.keybox input::placeholder { font-size: 11px; }
+.keybox button { padding: 7px 12px; font-size: 11px; border-radius: 5px; }
+.connection { font-size: 11px; }
+.wrap { margin-left: 224px; padding: 34px 32px 48px; max-width: 1550px; }
+.workspace-heading, .page-intro { margin-bottom: 26px; }
+.workspace-heading h1, .page-intro h1 { font-size: 27px; letter-spacing: -.04em; margin-bottom: 9px; }
+.workspace-heading p, .page-intro p { font-size: 12px; line-height: 1.7; }
+.section-kicker { font-size: 10px; font-weight: 600; letter-spacing: .1em; color: #788476; margin-bottom: 10px; }
+.preview-badge { font-size: 10px; background: #fff; border-color: var(--line); color: #59674c; }
+.preview-badge::before { width: 6px; height: 6px; background: #71974a; }
+.studio { gap: 20px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.editor-card, .result-card, .proof-report, .guide-card, .panel, .activity { border-radius: 10px; padding: 22px; background: #fff; border: 1px solid var(--line); box-shadow: 0 2px 3px #14241b02; }
+.card-heading { padding-bottom: 17px; margin-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
+.card-heading h2 { font-size: 14px; letter-spacing: -.02em; }
+.text-button { border-radius: 6px; font-size: 11px; padding: 6px 9px; }
+.editor-card > label, .option-row strong, .budget-row label, .options-heading { font-size: 12px; }
+.field-help, .option-row small { font-size: 11px; line-height: 1.65; }
+textarea { font-size: 13px; line-height: 1.7; border-color: #dce2de; border-radius: 6px; padding: 11px 12px; }
+textarea:hover, .proof-input:hover { border-color: #a7b3a9; }
+.proof-input { padding: 9px 12px; font-size: 12px; }
+.primary-button { font-size: 12px; padding: 12px 14px; border-radius: 7px; background: #24372b; color: #fff; border-color: #24372b; }
+.primary-button:hover { background: #354d39; }
+.result-card { --muted: #69736e; color: var(--text); min-height: 480px; top: 20px; }
+.result-card .card-heading h2 { color: var(--text); }
+.result-card .neutral-badge { font-size: 10px; }
+.result-placeholder { min-height: 375px; }
+.result-symbol { color: #648644; background: #f0f5e9; width: 52px; height: 52px; border: 1px solid #e2ead8; border-radius: 12px; font-size: 32px; margin-bottom: 20px; }
+.result-placeholder h3 { font-size: 16px; font-weight: 600; }
+.result-placeholder p { font-size: 12px; max-width: 250px; }
+.placeholder-flow { font-size: 10px; gap: 10px; background: #f8faf7; border: 1px solid var(--line-soft); border-radius: 6px; padding: 10px; }
+.placeholder-flow span { color: #688843; }
+.result-card .reduction-head { border-color: var(--line); }
+.result-card .reduction-head strong { color: #446b2c; font-size: 52px; }
+.comparison > div { background: #f7f8f7; border-color: var(--line); border-radius: 7px; }
+.comparison > div:last-child { background: #eff6e7; }
+.comparison strong { font-size: 25px; }
+.result-card .text-button { box-shadow: none; background: #fff; }
+.result-card pre, .guide-card pre { background: #f8faf9; color: #34443a; border-color: var(--line); font-size: 11px; }
+.result-card :focus-visible { outline-color: #5d793d; }
+.money-layout { gap: 20px; }
+.money-heading h2 { font-size: 17px; }
+.money-card, .money-card.saved, .money-chart { border-radius: 10px; }
+.money-card.saved { background: #edf5e3; border-color: #dce8ce; padding: 24px; }
+.money-card.saved > strong { font-size: 48px; color: #365b25; }
+.money-card.saved .money-badge { color: #46652e; background: #fff; border-color: #dce8ce; }
+.money-heading select { border-color: var(--line); border-radius: 6px; }
+.money-chart-heading h2 { font-size: 15px; }
+.money-chart { background: #18251e; border-color: #18251e; }
+.guide-card h2 { font-size: 15px; }
+.guide-card p { font-size: 13px; }
+.empty { background: #fff; border-radius: 10px; }
+.skip-link { z-index: 5; }
+@media (min-width: 1700px) { .wrap { margin-right: auto; } }
+@media (max-width: 980px) {
+  .sidebar { width: 200px; padding-inline: 12px; }
+  .topbar, .wrap { margin-left: 200px; }
+  .topbar { padding-inline: 24px; }
+  .wrap { padding: 28px 24px; }
+  .console-label { display: none; }
+  .toolbar { margin-left: auto; }
+  .studio { grid-template-columns: 1fr; }
+  .result-card { position: static; min-height: 320px; }
+  .result-placeholder { min-height: 240px; }
+}
+@media (max-width: 760px) {
+  .sidebar { position: static; width: auto; padding: 18px 16px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar .brand-logo { margin: 0 0 15px; }
+  .workspace-label, .nav-label, .sidebar-footer { display: none; }
+  .workspace-nav { flex-direction: row; gap: 4px; overflow-x: auto; padding-bottom: 10px; }
+  .workspace-nav button { font-size: 11px; gap: 6px; padding: 9px; min-height: 40px; }
+  .workspace-nav svg { width: 14px; height: 14px; }
+  .topbar, .wrap { margin-left: 0; }
+  .topbar { padding: 12px 16px; min-height: 0; }
+  .toolbar { gap: 10px; }
+  .connection { display: flex; }
+  .wrap { padding: 24px 16px; }
+  .workspace-heading h1, .page-intro h1 { font-size: 25px; }
+  .editor-card, .result-card, .proof-report { padding: 18px; }
+  textarea { font-size: 16px; }
+}
+
+/* Savings-first overview: neutral canvas, white cards, focused lime accent. */
+body { background: #e4e5e4; }
+.app-shell { margin: 24px; min-height: calc(100vh - 48px); border: 1px solid #fff; border-radius: 26px; background: #f4f5f4; overflow: hidden; }
+.sidebar { position: static; width: auto; padding: 22px 28px 12px; flex-direction: row; align-items: center; justify-content: space-between; gap: 24px; background: transparent; border: 0; }
+.sidebar .brand-logo { margin: 0; mix-blend-mode: multiply; }
+.workspace-label, .nav-label, .sidebar-footer { display: none; }
+.workspace-nav { flex-direction: row; padding: 5px; border-radius: 30px; background: #ffffff85; gap: 4px; }
+.workspace-nav button { border-radius: 24px; padding: 10px 17px; min-height: 38px; font-size: 12px; }
+.workspace-nav button.active { background: #b7ed70; border-color: #b7ed70; color: #20351d; }
+.workspace-nav button:hover:not(.active) { background: #e6efdf; }
+.workspace-nav svg { display: none; }
+.topbar { margin: 0; min-height: 0; padding: 8px 30px 18px; background: transparent; border: 0; }
+.keybox { background: #ffffffa6; border-color: #d9e3d3; border-radius: 20px; }
+.keybox button { border-radius: 16px; }
+.wrap { margin: 0; max-width: none; padding: 24px 28px 40px; }
+.page-intro { margin-bottom: 24px; align-items: end; }
+.page-intro h1 { font-size: 29px; font-weight: 500; }
+.section-kicker { color: #66775d; }
+.money-overview { margin: 0 0 20px; border-bottom: 0; padding-bottom: 0; }
+.money-heading h2 { font-size: 14px; font-weight: 500; }
+.money-heading select { background: #ffffffb0; border-color: #fff; border-radius: 20px; padding: 8px 14px; }
+.money-layout { grid-template-columns: 1fr; gap: 18px; margin-top: 16px; }
+.money-cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.money-secondary { display: contents; }
+.money-card, .money-card.saved, .money-card.spend, .money-card.potential { background: #fff; border: 1px solid #fff; border-radius: 22px; padding: 24px; grid-column: span 2; }
+.money-card.saved { background: #fff; border-color: #fff; grid-column: span 3; min-height: 250px; }
+.money-card.tokens { background: #b7ed70; border-color: #aee565; grid-column: span 3; position: relative; overflow: hidden; }
+.money-card.tokens::after { content: "↘"; position: absolute; right: 22px; top: 38px; font-size: 150px; line-height: 1; color: #355422; opacity: .07; pointer-events: none; }
+.money-card.tokens > * { position: relative; z-index: 1; }
+.money-card.tokens > strong { font-size: 54px; }
+.money-card.tokens .money-badge { background: #ffffff70; }
+.card-link { display: inline-flex; align-items: center; gap: 16px; margin-top: auto; padding: 9px 15px; border-radius: 22px; background: #203d25; color: #fff; text-decoration: none; font-size: 11px; }
+.card-link:hover { background: #315839; }
+.money-card.saved .card-link { margin-top: 18px; }
+.money-card h3, .money-card.saved h3 { font-size: 12px; margin-bottom: 16px; gap: 5px; }
+.money-card > strong, .money-card.spend > strong, .money-card.potential > strong { font-size: 32px; font-weight: 500; color: #233b22; letter-spacing: -.04em; }
+.money-card.saved > strong { font-size: clamp(42px, 4vw, 60px); font-weight: 500; color: #172a1b; letter-spacing: -.045em; }
+.money-card.tokens > strong { font-size: clamp(42px, 4vw, 60px); }
+.money-card p, .money-card.saved p { font-size: 11px; color: #5b6b55; }
+.money-badge { border: 0; background: #e6eddf; color: #5b6b55; font-size: 9px; border-radius: 15px; }
+.money-card.saved .money-badge { background: #e5f2da; border: 0; }
+.money-foot { grid-column: span 2; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 24px; border-radius: 22px; background: #fff; }
+.money-foot > div { display: flex; flex-direction: column; gap: 5px; }
+.money-foot > div + div { border: 0; border-top: 1px solid var(--line-soft); padding: 16px 0 0; }
+.money-foot strong { font-size: 24px; margin: 0; }
+.money-foot small { font-size: 10px; }
+.money-charts { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+.money-chart { background: #fff; color: #233323; border: 1px solid #ffffffdc; border-radius: 20px; padding: 22px; min-height: 300px; }
+.money-chart-heading h2 { font-weight: 500; font-size: 15px; }
+.money-chart-heading > span { color: #617557; border: 0; background: #e3edda; border-radius: 20px; }
+.money-chart > p, .money-chart .chart-caption, .chart-legend { color: #64755b; }
+.money-chart #comparisonEmpty, .money-chart #liveComparisonEmpty { flex: 1; display: grid; place-content: center; min-height: 170px; padding: 24px; margin: 14px 0; border: 1px dashed #ccd9c3; background: #ffffff35; color: #65745e; font-size: 12px; line-height: 1.8; border-radius: 14px; text-align: center; }
+.legend-baseline { background: #889c7d; }
+.legend-candidate { background: #4b9247; }
+.money-disclosure { font-size: 10px; margin-top: 16px; }
+.empty { background: #fff; border-color: #ffffffb0; border-radius: 18px; padding: 24px; }
+.empty-mark { display: none; }
+.empty h2 { font-size: 16px; }
+.empty p { font-size: 12px; }
+.empty .privacy { margin-top: 10px; font-size: 10px; }
+.editor-card, .result-card, .proof-report, .guide-card, .panel, .activity { border-radius: 18px; border-color: #fff; background: #ffffffc4; }
+.tile { border-color: #fff; border-radius: 18px; }
+@media (max-width: 1050px) {
+  .money-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .money-card, .money-card.saved, .money-card.tokens, .money-card.spend, .money-card.potential { grid-column: span 1; }
+  .money-foot { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; gap: 32px; }
+  .money-foot > div + div { border: 0; padding: 0; }
+  .money-charts { grid-template-columns: 1fr; }
+  .sidebar { gap: 12px; padding-inline: 22px; }
+  .workspace-nav button { padding-inline: 12px; }
+}
+@media (max-width: 760px) {
+  .app-shell { margin: 8px; border-radius: 18px; min-height: calc(100vh - 16px); }
+  .sidebar { align-items: flex-start; flex-direction: column; padding: 18px 14px 8px; }
+  .sidebar .brand-logo { margin: 0 0 8px; }
+  .workspace-nav { max-width: 100%; gap: 0; padding: 4px; }
+  .workspace-nav button { padding: 9px 12px; font-size: 10px; }
+  .topbar { padding: 8px 16px; }
+  .wrap { padding: 22px 14px; }
+  .page-intro { align-items: flex-start; }
+  .page-intro h1 { font-size: 25px; }
+  .money-heading { flex-direction: row; align-items: center; }
+  .money-heading label { font-size: 11px; }
+  .money-card, .money-card.saved, .money-card.spend, .money-card.potential { padding: 15px; }
+  .money-card.saved > strong, .money-card > strong, .money-card.spend > strong, .money-card.potential > strong { font-size: 26px; }
+  .money-cards { grid-template-columns: 1fr; }
+  .money-card.saved { min-height: 225px; }
+  .money-card.tokens { min-height: 210px; }
+  .money-card.saved > strong, .money-card.tokens > strong { font-size: 44px; }
+  .money-foot { flex-direction: row; gap: 24px; padding: 18px; }
+  .money-foot > div + div { padding-left: 0; border-left: 0; }
+  .money-chart { padding: 18px; }
+}

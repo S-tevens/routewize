@@ -60,6 +60,14 @@ test("rules are evaluated in order — first match wins", () => {
   assert.equal(route.matchedRule, "short-classification");
 });
 
+test("every route explains why it was chosen, without echoing prompt text", () => {
+  const matched = selectRoute({ customer, promptText: "Please CLASSIFY this private-note-991", forceFlagship: false });
+  assert.deepEqual(matched.why, [`~${Math.ceil("Please CLASSIFY this private-note-991".length / 4)} tokens ≤ 200`, 'keyword "classify"']);
+  assert.ok(!matched.why.join(" ").includes("private-note-991"));
+  assert.deepEqual(selectRoute({ customer, promptText: "classify", forceFlagship: true }).why, ["client forced the flagship model"]);
+  assert.deepEqual(selectRoute({ customer, promptText: "write a poem", forceFlagship: false }).why, ["no routing rule matched (2 checked)"]);
+});
+
 test("customer with no routing rules always falls through to default", () => {
   const bareCustomer = { default: { provider: "openai", model: "gpt-4o" } };
   const route = selectRoute({ customer: bareCustomer, promptText: "classify anything", forceFlagship: false });

@@ -7,39 +7,48 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17.5 6 L7 9 L17 15 L6.5 18' fill='none' stroke='%23cbf24f' stroke-width='4.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/reference-ui.css">
+<link rel="stylesheet" href="/console-ui.css">
 </head>
 <body>
+<a class="skip-link" href="#mainContent">Skip to content</a>
 <div class="app-shell">
 
-<header class="topbar">
-  <a class="brand brand-logo" href="#playground" aria-label="Routewize playground">
-    <img src="/routewize-logo.png" width="1600" height="548" alt="Routewize">
+<aside class="sidebar" aria-label="Workspace navigation">
+  <a class="brand brand-logo" href="#usage" aria-label="Routewize overview">
+    <img src="/routewize-logo.png" width="2172" height="724" alt="Routewize">
   </a>
 
+  <div class="workspace-label"><span class="workspace-avatar">R</span><div>My workspace<small>API cost optimization</small></div></div>
+  <p class="nav-label">WORKSPACE</p>
+  <nav class="workspace-nav" aria-label="Workspace">
+    <button data-view="usage" class="active" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M7 15V9m5 6V5m5 10v-7"/></svg><span>Overview</span></button>
+    <button data-view="playground" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg><span>Playground</span></button>
+    <button data-view="proof" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 3 3 5-6"/><rect x="4" y="3" width="16" height="18" rx="3"/></svg><span>Savings proof</span></button>
+    <button data-view="guide" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v14M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z"/></svg><span>Quickstart</span></button>
+
+  </nav>
+  <div class="sidebar-footer"><span class="provider-label">SUPPORTED PROVIDERS</span><p>OpenAI <span>·</span> Anthropic <span>·</span> 9 more</p><a href="#guide">Integration guide <span aria-hidden="true">↗</span></a></div>
+</aside>
+<header class="topbar">
+  <div class="console-label">Workspace <span>/</span> <strong id="currentViewLabel">Overview</strong></div>
   <div class="toolbar">
     <div class="connection" aria-live="polite">
       <span class="dot" id="statusDot"></span>
       <span id="statusLabel">Not connected</span>
     </div>
     <div class="keybox">
-      <input id="apiKey" type="text" spellcheck="false" autocomplete="off" placeholder="Your routewize API key" aria-label="routewize API key">
+      <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="Your routewize API key" aria-label="routewize API key">
       <button id="connectBtn">Connect</button>
     </div>
   </div>
 </header>
 
-<main class="wrap">
+<main class="wrap" id="mainContent" tabindex="-1">
 
-  <nav class="workspace-nav" aria-label="Workspace">
-    <button class="active" data-view="playground" aria-pressed="true">Playground</button>
-    <button data-view="usage" aria-pressed="false">Usage & savings</button>
-    <button data-view="proof" aria-pressed="false">Savings proof</button>
-    <button data-view="guide" aria-pressed="false">Quickstart</button>
-    <span>Multi-provider AI gateway</span>
-  </nav>
 
-  <section id="playgroundView">
-    <div class="workspace-heading"><div><h1>Optimize your context</h1><p>Keep useful information. Send fewer tokens.</p></div><span class="preview-badge">Preview · No model charges</span></div>
+
+  <section id="playgroundView" hidden>
+    <div class="workspace-heading"><div><div class="section-kicker">PLAYGROUND</div><h1>Make every token count.</h1><p>Keep useful information. Send fewer tokens.</p></div><span class="preview-badge">Preview · No model charges</span></div>
     <div class="studio">
       <form id="optimizeForm" class="editor-card">
         <div class="card-heading"><h2>Your input</h2><button type="button" id="loadExample" class="text-button">Load example ↗</button></div>
@@ -76,7 +85,7 @@
 
   <section id="guideView" hidden>
     <div class="workspace-heading"><div><h1>Connect your application</h1><p>Bring your existing Routewize key and connect your application.</p></div></div>
-    <div class="guide-card"><h2>1. Connect your key</h2><p>Enter your Routewize customer key in the header. Your provider keys stay in the server configuration.</p><h2>2. Preview your context</h2><p>Use the Playground to inspect compression and document selection without making a paid model call.</p><h2>3. Send an optimized model request</h2><p>Use the chat endpoint with your question and reference documents. Caching and routing follow your customer configuration.</p><pre id="integrationCode"></pre><p class="field-help">Text requests only. Streaming and tool calls are not supported yet. The preview endpoint does not add entries to usage history.</p></div>
+    <div class="guide-card"><h2>1. Connect your key</h2><p>Enter your Routewize customer key in the header. Your provider keys stay in the server configuration.</p><h2>2. Preview your context</h2><p>Use the Playground to inspect compression and document selection without making a paid model call.</p><h2>3. Send an optimized model request</h2><p>Use the chat endpoint with your question and reference documents. Caching and routing follow your customer configuration.</p><pre id="integrationCode"></pre><p class="field-help">Text requests and streaming are supported. Tool calls are not supported. The preview endpoint does not add entries to usage history.</p></div>
   </section>
 
   <section id="proofView" hidden>
@@ -114,22 +123,23 @@
     </div>
   </section>
 
-  <section id="usageView" hidden>
+  <section id="usageView">
 
   <div class="page-intro">
     <div>
-      <div class="eyebrow">LLM cost control</div>
-      <h1>Workspace overview</h1>
+      <div class="section-kicker">YOUR AI, MORE EFFICIENT</div>
+      <h1>Your savings, at a glance.</h1>
     </div>
-    <p>Provider spend, estimated savings, and evidence from your comparisons.</p>
+    <p>Track spend. Reduce waste. See what’s working.</p>
   </div>
 
   <section class="money-overview" aria-label="Costs and savings">
-    <div class="money-heading"><h2>Spend a little wiser.</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
+    <div class="money-heading"><h2>Your cost summary</h2><label for="overviewDays">Period <select id="overviewDays"><option value="7">Last 7 days</option><option value="14" selected>Last 14 days</option><option value="30">Last 30 days</option><option value="0">All time</option></select></label></div>
     <p id="moneyStatus" class="field-help" role="status">Connect your Routewize key to load financial evidence.</p>
     <div class="money-layout">
       <div class="money-cards">
-        <article class="money-card saved"><h3>Cost saved <span class="money-badge">Estimated</span></h3><strong id="costSaved">—</strong><p id="costSavedNote">Avoided costs estimated from gateway logs.</p><p id="costSavedBreakdown" class="money-breakdown"></p></article>
+        <article class="money-card saved"><h3>Cost saved <span class="money-badge">Estimated</span></h3><strong id="costSaved">—</strong><p id="costSavedNote">Avoided costs estimated from gateway logs.</p><p id="costSavedBreakdown" class="money-breakdown"></p><a class="card-link" href="#guide">Connect your application <span aria-hidden="true">↗</span></a></article>
+        <article class="money-card tokens"><h3>Tokens saved <span aria-hidden="true">↘</span></h3><strong id="tokensSaved">—</strong><span class="money-badge">Estimated · Context only</span><p id="tokensSavedNote">Input tokens removed by context optimization. Excludes cache reuse.</p></article>
         <div class="money-secondary">
           <article class="money-card spend"><h3>Provider spend <span aria-hidden="true">↗</span></h3><strong id="providerSpend">—</strong><span class="money-badge">From gateway requests</span><p id="providerSpendNote">Waiting for recorded provider usage.</p></article>
           <article class="money-card potential"><h3>Potential savings <span aria-hidden="true">✧</span></h3><strong id="potentialSavings">—</strong><span class="money-badge">Test-sample potential</span><p id="potentialSavingsNote">Run Savings proof to measure the difference.</p></article>
@@ -137,8 +147,8 @@
         <div class="money-foot"><div><span>Gateway requests</span><strong id="moneyRequests">—</strong></div><div><span>Evaluation provider spend</span><strong id="evaluationSpend">—</strong><small id="evaluationSpendNote">Separate from gateway spend</small></div></div>
       </div>
       <div class="money-charts">
-        <section class="money-chart"><div class="money-chart-heading"><h2>Cost comparison</h2><span>Paid evaluations</span></div><p id="comparisonNote">Original vs optimized cost for the same test inputs.</p><div id="comparisonEmpty">Run a paid comparison in Savings proof to build this graph. No financial results are simulated.</div><svg id="costComparison" role="img" aria-label="Original and optimized evaluation costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Original</span><span><i class="legend-candidate"></i> Optimized + overhead</span></div><p class="chart-caption">Includes all priced comparisons. Potential savings only includes pairs passing the required phrase checks.</p></section>
         <section class="money-chart"><div class="money-chart-heading"><h2>Live traffic: baseline vs actual</h2><span id="liveComparisonBadge">Waiting for traffic</span></div><p id="liveComparisonNote">What your default model would have cost vs. what gateway requests actually cost, by day.</p><div id="liveComparisonEmpty">No live gateway traffic yet in this period. This fills in automatically once real requests flow through — nothing to configure.</div><svg id="liveCostComparison" role="img" aria-label="Baseline and actual gateway costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Baseline (default model)</span><span><i class="legend-candidate"></i> Actual</span></div><p class="chart-caption">Estimated from token counts and configured/live pricing, same source as "Cost saved" above — not a reconciled provider invoice.</p></section>
+        <section class="money-chart"><div class="money-chart-heading"><h2>Cost comparison</h2><span>Paid evaluations</span></div><p id="comparisonNote">Original vs optimized cost for the same test inputs.</p><div id="comparisonEmpty">Run a paid comparison in Savings proof to build this graph. No financial results are simulated.</div><svg id="costComparison" role="img" aria-label="Original and optimized evaluation costs by day" hidden></svg><div class="chart-legend"><span><i class="legend-baseline"></i> Original</span><span><i class="legend-candidate"></i> Optimized + overhead</span></div><p class="chart-caption">Includes all priced comparisons. Potential savings only includes pairs passing the required phrase checks.</p></section>
       </div>
     </div>
     <p class="money-disclosure">Amounts use recorded usage and configured rates or explicitly labeled estimates. Not invoice-verified. Potential savings is the difference on tested requests, not a forecast, and is not added to cost saved.</p>
