@@ -47,6 +47,7 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 
 | Status | Task | Notes |
 |---|---|---|
+| ✅ Implemented (pending PR review) | Multi-provider text gateway | User-requested 2026-09-28: nine additional adapters, shared registry, provider-qualified pricing, JSON/SSE and evaluation support; see PROVIDERS.md. 164 tests pass (138 baseline + 26 new); live provider checks pending customer keys. |
 | ✅ Done (merged PR #11) | Async near-miss cache verification | Opt-in (default off) margin/judge model, post-response YES/NO check, same-namespace promotion, paid judge events (including rejection/error), spend-cap check and overhead accounting. Existing matching preserved and near-duplicate regression covered; unit + offline HTTP tests cover both providers and JSON/SSE. Dry-run reports reject enabled configs. Reviewed pre-merge; no real-provider smoke test yet. |
 | ✅ Done | CI pipeline (`npm test` on every PR) | `.github/workflows/test.yml` |
 | ✅ Done | Verify model IDs are still live | Confirmed against provider docs 2026-09-12: `claude-3-5-sonnet-20241022` and `claude-3-5-haiku-20241022` are **retired** (would fail live). Updated `customers.example.yaml`/`customers.yaml` to `claude-sonnet-4-6` / `claude-haiku-4-5-20251001`. `gpt-4o`/`gpt-4o-mini` confirmed still active. See README's "Pricing data" section. Re-check periodically — providers retire models on their own schedule. |
@@ -62,7 +63,7 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 | ✅ Done | Rebrand `pitch-one-pager.html` | Title, main heading and footer now say routewize. Real case-study result stays Pending; synthetic traffic labels remain. No provider key available for the live streaming smoke test. |
 | ⬜ later (explicit decision, not forgotten) | Persistent, shared cache (Redis + pgvector/Qdrant) | Team decision 2026-09-12: no Redis instance yet, deliberately deferred rather than building speculative infrastructure. Revisit once there's more than one pilot customer or a reason to run more than one server process. See SYSTEM_DESIGN.md §9 for why the in-memory cache is the actual scaling blocker when this becomes relevant. |
 | ⬜ later (explicit decision, not forgotten) | Real secrets manager (Vault/AWS/GCP Secrets Manager) | Team decision 2026-09-12: env-var substitution (above) is the interim fix. Move to a real secrets manager once there's meaningful customer volume — pick the provider based on where the app ends up hosted. |
-| ⬜ optional | Gemini support | Spec lists as an optional "+maybe" — not started, no immediate need. |
+| ✅ Implemented (pending PR review) | Gemini text chat support | OpenAI-compatible Gemini endpoint; included in multi-provider integration. Native multimodal, tools and embeddings remain outside this change. |
 | ⬜ blocked (not engineering) | Real customer case study | Waiting on real traffic export from a pilot customer — this is the actual product bottleneck. Not a Codex task; needs a human to go get the data. |
 
 ## Production-readiness checklist

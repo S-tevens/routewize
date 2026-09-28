@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
+import { validateProviderConfig } from "../providers/config.js";
 
 let cachedConfig = null;
 let cachedPath = null;
@@ -51,6 +52,7 @@ function parseConfigFile(configPath) {
     if (!customer.api_key) {
       throw new Error(`Customer "${customer.name ?? "unknown"}" is missing api_key`);
     }
+    validateProviderConfig(customer);
     byApiKey.set(customer.api_key, customer);
   }
 
