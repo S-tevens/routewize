@@ -234,3 +234,38 @@ In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the
 7. **Queryable request log merged (PR #2).** SQLite indexes the authoritative JSONL log incrementally; stats uses daily rollups and financial overview uses customer/date indexes. Backfill/rebuild still blocks synchronously, and the separate evaluation-receipt log remains a full scan. Shared cache infrastructure remains deferred.
 
 None of this is needed to serve the current single pilot customer scenario. It becomes necessary in roughly the order listed as soon as there's more than one paying customer or any real production load.
+
+
+## 10. Multi-provider text gateway
+
+The provider registry now explicitly dispatches OpenAI, Anthropic, and nine
+OpenAI-compatible text-chat adapters (see PROVIDERS.md). Unknown providers fail
+configuration validation rather than accidentally calling OpenAI. Fixed endpoint
+profiles prevent caller-controlled credential redirection. Existing native
+OpenAI/Anthropic adapters and pure customer-defined rules are unchanged.
+
+New adapters normalize provider usage (including DeepSeek cached input and Groq
+stream metadata). Cumulative streaming usage is emitted once after a successful
+finish; missing usage or incomplete output is an error and cannot populate the
+cache. New-provider failed calls log unknown spend, never a zero-cost success.
+Credentials remain per customer. Cache namespaces already include resolved
+provider/model, so expanding the registry preserves provider isolation.
+
+New routes require explicit `evaluation.pricing["provider/model"]` rates even
+when the paid evaluation endpoint is disabled. `estimateRouteCost` shares these
+rates across live cache estimates, routing estimates and dry-run forecasts.
+Legacy OpenAI/Anthropic estimates retain historical behavior. For new providers,
+measured spend uses normalized token usage and customer rates; OpenRouter instead
+requires its reported `usage.cost`. Known measured spend drives actual-cost
+estimates and spend accounting, with negative savings preserved. Cache savings
+and routing savings are separated without double-counting native cache discounts.
+Unsupported billing categories remain unknown. Dry runs still use estimated
+uncached token costs, not invoice-verified savings or aggregator fees.
+
+The paid evaluation registry supports the new providers and still requires
+explicit confirmation and rates. `/api/providers` exposes safe per-customer
+configuration flags, not secrets or live health checks. Embeddings remain
+OpenAI or mock; a real semantic cache needs an OpenAI embedding key even when
+its generation provider differs. Caching can be disabled for other-only setups.
+All new integrations have offline contract/HTTP coverage; none is represented
+as live-provider verified without a real-key smoke test.

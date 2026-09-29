@@ -1,3 +1,5 @@
+import { isCompatibleProvider } from "../providers/catalog.js";
+
 // Rates must be supplied by the customer. Never substitute generic fallback prices.
 // Anthropic additionally needs cache_write_input: writing a new prompt-cache
 // entry (buildCachedSystem() in providers/anthropic.js) is billed at a
@@ -18,7 +20,7 @@ export function validateRates(rates, provider) {
 export function priceResponse(provider, raw, rates) {
   const u = raw?.usage;
   let input, output, cached, cacheWrite = 0;
-  if (provider === "openai") {
+  if (provider === "openai" || isCompatibleProvider(provider)) {
     input = u?.prompt_tokens;
     output = u?.completion_tokens;
     cached = u?.prompt_tokens_details?.cached_tokens ?? 0;
@@ -32,6 +34,11 @@ export function priceResponse(provider, raw, rates) {
   } else throw new Error("Unsupported provider");
   if (![input, output, cached, cacheWrite].every((n) => Number.isSafeInteger(n) && n >= 0) || cached > input) throw new Error("Provider token usage is missing or invalid; cost cannot be established");
   if (cacheWrite > 0 && !Number.isFinite(rates.cache_write_input)) throw new Error("Cache write rate is not configured; cost cannot be established");
+  if (provider === "openrouter") {
+    if (!Number.isFinite(u?.cost) || u.cost < 0) throw new Error("OpenRouter reported cost is missing or invalid");
+    return { input_tokens: input, output_tokens: output, cached_input_tokens: cached, cache_write_input_tokens: 0, cost_usd: u.cost };
+  }
+  if (isCompatibleProvider(provider) && ((u?.prompt_tokens_details?.cache_write_tokens ?? 0) > 0 || (u?.cache_creation_input_tokens ?? 0) > 0)) throw new Error("Provider cache-write pricing is unsupported");
   const cost = ((input - cached) * rates.input + cached * rates.cached_input + cacheWrite * (rates.cache_write_input ?? 0) + output * rates.output) / 1e6;
   return { input_tokens: input, output_tokens: output, cached_input_tokens: cached, cache_write_input_tokens: cacheWrite, cost_usd: cost };
 }
@@ -47,7 +54,8 @@ export function priceResponse(provider, raw, rates) {
 // module's fail-closed convention: unknown is never displayed as zero.
 export function promptCacheSavings(provider, raw, rates) {
   const u = raw?.usage;
-  if (provider === "openai") {
+  if (provider === "openrouter") return null; // Aggregated billing is not a per-mechanism savings proof.
+  if (provider === "openai" || isCompatibleProvider(provider)) {
     const cached = u?.prompt_tokens_details?.cached_tokens ?? 0;
     if (!Number.isFinite(rates?.cached_input) || !Number.isFinite(rates?.input)) return null;
     return (cached * (rates.input - rates.cached_input)) / 1e6;

@@ -19,9 +19,10 @@ import { SemanticCache } from "./cache/semanticCache.js";
 import { scheduleNearMissVerification } from "./cache/nearMissVerification.js";
 import { selectRoute } from "./router/rules.js";
 import { decide } from "./decision/index.js";
-import { callOpenAI, streamOpenAI } from "./providers/openai.js";
-import { callAnthropic, streamAnthropic } from "./providers/anthropic.js";
-import { estimateCost, loadRemotePricing } from "./logging/pricing.js";
+import { callProvider, streamProvider } from "./providers/registry.js";
+import { PROVIDER_IDS, isCompatibleProvider } from "./providers/catalog.js";
+import { estimateRouteCost } from "./logging/routeCost.js";
+import { loadRemotePricing } from "./logging/pricing.js";
 import { logRequestEvent } from "./logging/logger.js";
 import { computeStats } from "./logging/stats.js";
 
@@ -70,6 +71,11 @@ app.get("/admin/admin.js", (req, res) => res.sendFile(path.join(ADMIN_DIR, "admi
 
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 app.use("/v1/evaluations", authMiddleware(CONFIG_PATH), evaluationRouter());
+
+app.get("/api/providers", authMiddleware(CONFIG_PATH), (req, res) => {
+  res.json({ providers: PROVIDER_IDS.map(id => ({ id, configured: Boolean(req.customer.provider_keys?.[id]),
+    capabilities: ["text_chat", "streaming"], live_verified: false })) });
+});
 
 app.get("/api/stats", authMiddleware(CONFIG_PATH), (req, res) => {
   res.json(computeStats(req.customer.name));
@@ -173,7 +179,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     if (cacheConfig.enabled && !forceFlagship) {
       const embedder = createEmbeddingProvider({
         provider: EMBEDDING_PROVIDER,
-        openaiClient: embeddingClientFor(customer.provider_keys.openai),
+        openaiClient: EMBEDDING_PROVIDER === "openai" ? embeddingClientFor(customer.provider_keys.openai) : undefined,
         model: EMBEDDING_MODEL,
       });
       embedding = await embedder.embed(embeddingText);
@@ -186,8 +192,8 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
 
       if (result.hit) {
         const { entry } = result;
-        const savedCost = estimateCost(
-          entry.model,
+        const savedCost = estimateRouteCost(
+          customer, route,
           entry.response.usage.prompt_tokens,
           entry.response.usage.completion_tokens
         );
@@ -196,8 +202,8 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
         // cached model, not necessarily the customer's default) -- always
         // the default model, so the chart's definition of "baseline" stays
         // consistent across cache hits, routed calls, and default-model calls.
-        const defaultModelCost = estimateCost(
-          customer.default.model,
+        const defaultModelCost = estimateRouteCost(
+          customer, customer.default,
           entry.response.usage.prompt_tokens,
           entry.response.usage.completion_tokens
         );
@@ -269,10 +275,11 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship, decision, trace });
     }
 
-    const result = route.provider === "anthropic" ? await callAnthropic(callArgs) : await callOpenAI(callArgs);
+    const result = await callProvider(route.provider, callArgs);
 
     let currentEntry;
-    if (cacheConfig.enabled && !forceFlagship) {
+    // `complete === false` (e.g. cut off by max_tokens) must never be replayed to other requests.
+    if (cacheConfig.enabled && !forceFlagship && result.complete !== false) {
       currentEntry = cache.store(cacheNamespace, {
         embedding,
         promptText: embeddingText,
@@ -282,10 +289,10 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       });
     }
 
-    const actualCost = estimateCost(route.model, result.usage.prompt_tokens, result.usage.completion_tokens);
-    const baselineCost = estimateCost(customer.default.model, result.usage.prompt_tokens, result.usage.completion_tokens);
-    const estimatedSavings = Math.max(0, baselineCost - actualCost);
-    usageGuard.recordSpend(customer.api_key, actualCost);
+    let actualCost = estimateRouteCost(customer, route, result.usage.prompt_tokens, result.usage.completion_tokens);
+    const baselineCost = estimateRouteCost(customer, customer.default, result.usage.prompt_tokens, result.usage.completion_tokens);
+    let estimatedSavings = Math.max(0, baselineCost - actualCost);
+    if (!isCompatibleProvider(route.provider)) usageGuard.recordSpend(customer.api_key, actualCost);
 
     let providerSpend = null;
     let promptCacheSavingsUsd = null;
@@ -295,17 +302,23 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       promptCacheSavingsUsd = promptCacheSavings(route.provider, result.raw, rates);
     } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
 
+    if (isCompatibleProvider(route.provider)) {
+      actualCost = providerSpend ?? actualCost;
+      estimatedSavings = baselineCost - actualCost; // Preserve losses, including aggregator fees.
+      usageGuard.recordSpend(customer.api_key, actualCost);
+    }
     logRequestEvent({
+      provider: route.provider,
       customer: customer.name,
       customer_sha256: createHash("sha256").update(customer.api_key).digest("hex"),
-      financials: { provider_spend_usd: providerSpend, source: "provider_usage_at_configured_rates" },
+      financials: { provider_spend_usd: providerSpend, source: route.provider === "openrouter" ? "provider_reported_cost" : "provider_usage_at_configured_rates" },
       model_requested: modelRequested ?? customer.default.model,
       model_used: route.model,
       cache_hit: false,
       matched_rule: route.matchedRule,
       route_why: route.why,
       estimated_savings: estimatedSavings,
-      savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
+      savings_breakdown: { cache_usd: 0, routing_usd: isCompatibleProvider(route.provider) ? estimatedSavings - (promptCacheSavingsUsd ?? 0) : estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
       cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
       ...(decision ? { decision } : {}),
@@ -322,13 +335,24 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
         estimatedSavings,
         optimization: optimized.metrics,
         trace,
+        finishReason: result.finishReason,
       })
     );
   } catch (err) {
+    if (isCompatibleProvider(route.provider)) logProviderFailure(customer, route);
     console.error(err);
     return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
 });
+
+function logProviderFailure(customer, route) {
+  logRequestEvent({ customer: customer.name,
+    customer_sha256: createHash("sha256").update(customer.api_key).digest("hex"),
+    provider: route.provider, model_requested: route.model, model_used: route.model,
+    cache_hit: false, matched_rule: route.matchedRule, estimated_savings: 0,
+    financials: { provider_spend_usd: null, source: "provider_call_failed_cost_unknown" },
+  });
+}
 
 function writeSseHeaders(res) {
   res.setHeader("Content-Type", "text/event-stream");
@@ -353,13 +377,14 @@ function endSseStream(res) {
 // error event, since the response status/headers are already sent.
 async function handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship, decision, trace }) {
   const resultSink = {};
-  const generator = route.provider === "anthropic" ? streamAnthropic(callArgs, resultSink) : streamOpenAI(callArgs, resultSink);
+  const generator = streamProvider(route.provider, callArgs, resultSink);
   const iterator = generator[Symbol.asyncIterator]();
 
   let first;
   try {
     first = await iterator.next();
   } catch (err) {
+    if (isCompatibleProvider(route.provider)) logProviderFailure(customer, route);
     console.error(err);
     return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
@@ -381,12 +406,12 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     // rw_meta before forwarding it, same info the non-streaming response
     // carries, just delivered on the last chunk instead of the only one.
     const usage = { prompt_tokens: chunk.usage.prompt_tokens, completion_tokens: chunk.usage.completion_tokens };
-    const actualCost = estimateCost(route.model, usage.prompt_tokens, usage.completion_tokens);
-    const baselineCost = estimateCost(customer.default.model, usage.prompt_tokens, usage.completion_tokens);
-    const estimatedSavings = Math.max(0, baselineCost - actualCost);
-    usageGuard.recordSpend(customer.api_key, actualCost);
+    let actualCost = estimateRouteCost(customer, route, usage.prompt_tokens, usage.completion_tokens);
+    const baselineCost = estimateRouteCost(customer, customer.default, usage.prompt_tokens, usage.completion_tokens);
+    let estimatedSavings = Math.max(0, baselineCost - actualCost);
+    if (!isCompatibleProvider(route.provider)) usageGuard.recordSpend(customer.api_key, actualCost);
 
-    if (cacheConfig.enabled && !forceFlagship) {
+    if (cacheConfig.enabled && !forceFlagship && resultSink.complete !== false) {
       currentEntry = cache.store(cacheNamespace, { embedding, promptText: embeddingText, response: { content, usage }, model: route.model, ttlSeconds: cacheConfig.ttl_seconds ?? 86400 });
     }
 
@@ -398,17 +423,23 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
       promptCacheSavingsUsd = promptCacheSavings(route.provider, resultSink.raw, rates);
     } catch { /* Missing pricing/usage is unknown, never assumed to be free. */ }
 
+    if (isCompatibleProvider(route.provider)) {
+      actualCost = providerSpend ?? actualCost;
+      estimatedSavings = baselineCost - actualCost; // Preserve losses, including aggregator fees.
+      usageGuard.recordSpend(customer.api_key, actualCost);
+    }
     logRequestEvent({
+      provider: route.provider,
       customer: customer.name,
       customer_sha256: createHash("sha256").update(customer.api_key).digest("hex"),
-      financials: { provider_spend_usd: providerSpend, source: "provider_usage_at_configured_rates" },
+      financials: { provider_spend_usd: providerSpend, source: route.provider === "openrouter" ? "provider_reported_cost" : "provider_usage_at_configured_rates" },
       model_requested: modelRequested ?? customer.default.model,
       model_used: route.model,
       cache_hit: false,
       matched_rule: route.matchedRule,
       route_why: route.why,
       estimated_savings: estimatedSavings,
-      savings_breakdown: { cache_usd: 0, routing_usd: estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
+      savings_breakdown: { cache_usd: 0, routing_usd: isCompatibleProvider(route.provider) ? estimatedSavings - (promptCacheSavingsUsd ?? 0) : estimatedSavings, prompt_cache_usd: promptCacheSavingsUsd },
       cost_estimate: { baseline_usd: baselineCost, actual_usd: actualCost },
       optimization: optimized.metrics,
       ...(decision ? { decision } : {}),
@@ -430,6 +461,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     }
     completed = true;
   } catch (err) {
+    if (isCompatibleProvider(route.provider)) logProviderFailure(customer, route);
     console.error(err);
     writeSseChunk(res, { error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
   }
@@ -449,13 +481,13 @@ function adviseTier(messages) {
   }
 }
 
-function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization, trace }) {
+function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estimatedSavings, optimization, trace, finishReason = "stop" }) {
   return {
     id: `chatcmpl-${uuidv4()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
     model: modelUsed,
-    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: finishReason }],
     usage: {
       prompt_tokens: usage.prompt_tokens,
       completion_tokens: usage.completion_tokens,

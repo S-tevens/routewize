@@ -1,3 +1,4 @@
+import { assertProviderRoute } from "../providers/catalog.js";
 import { createHash, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { optimizeContext } from "../optimization/context.js";
@@ -22,7 +23,7 @@ export function prepareEvaluation(customer, body) {
     const optimized = optimizeContext(item.messages, options, customer.optimization);
     const route = body.use_routing ? selectRoute({ customer, promptText: item.messages.map((m) => m.content).join("\n"), forceFlagship: false }) : customer.default;
     const arms = [{ name: "baseline", route: customer.default, messages: baseline.messages }, { name: "optimized", route, messages: optimized.messages }].map((arm) => {
-      if (!["openai", "anthropic"].includes(arm.route?.provider) || !arm.route.model) throw new Error("Only configured OpenAI and Anthropic models are supported");
+      assertProviderRoute(arm.route);
       const apiKey = customer.provider_keys?.[arm.route.provider];
       if (!apiKey || /REPLACE_ME/.test(apiKey)) throw new Error(`Configure a real ${arm.route.provider} key before running evaluation`);
       const rates = validateRates(customer.evaluation.pricing?.[`${arm.route.provider}/${arm.route.model}`], arm.route.provider);
@@ -55,7 +56,7 @@ export async function runEvaluation(plan, providers) {
         result.provider_response_id = response.raw?.id ?? null;
         result.served_model = response.raw?.model ?? arm.route.model;
         result.usage = priceResponse(arm.route.provider, response.raw, arm.rates);
-        const finish = arm.route.provider === "openai" ? response.raw?.choices?.[0]?.finish_reason : response.raw?.stop_reason;
+        const finish = arm.route.provider === "anthropic" ? response.raw?.stop_reason : response.raw?.choices?.[0]?.finish_reason;
         result.finish_reason = finish ?? null;
         result.completed = ["stop", "end_turn", "stop_sequence"].includes(finish);
         result.checks = sample.expected.map((phrase) => ({ phrase, passed: typeof response.content === "string" && response.content.toLowerCase().includes(phrase.toLowerCase()) }));
