@@ -1,6 +1,7 @@
 let overviewController;
 const preciseMoney = (value) => value == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: Math.abs(value) > 0 && Math.abs(value) < 1 ? 6 : 2 }).format(value);
 function clearFinancialOverview() {
+  window.dispatchEvent(new Event("activity-reset"));
   for (const id of ["providerSpend", "potentialSavings", "costSaved", "moneyRequests", "evaluationSpend", "tokensSaved"]) $(id).textContent = "—";
   $("providerSpendNote").textContent = "Waiting for recorded provider usage.";
   $("potentialSavingsNote").textContent = "Run Savings proof to measure the difference.";
@@ -53,6 +54,8 @@ async function loadFinancialOverview() {
     const start = days ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days + 1)).toISOString().slice(0, 10) : "";
     const end = now.toISOString().slice(0, 10);
     const daily = stats.daily.filter(day => day.date >= start && day.date <= end);
+    window.dispatchEvent(new CustomEvent("activity-data", {detail: {daily, recent: stats.recent, start, end}}));
+    selectedDays = days; allDaily = stats.daily; renderForPeriod();
     $("tokensSaved").textContent = daily.reduce((sum, day) => sum + (day.tokensRemoved ?? 0), 0).toLocaleString();
   } catch (err) {
     if (err.name !== "AbortError") $("moneyStatus").textContent = err.message;

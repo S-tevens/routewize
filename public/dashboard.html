@@ -154,6 +154,18 @@
     <p class="money-disclosure">Amounts use recorded usage and configured rates or explicitly labeled estimates. Not invoice-verified. Potential savings is the difference on tested requests, not a forecast, and is not added to cost saved.</p>
   </section>
 
+  <section class="activity-insights" aria-label="Request efficiency">
+    <article class="panel"><h3>Semantic cache hit rate</h3><strong class="insight-value" id="explorerCache">—</strong><p class="field-help">Share of logged requests served from the response cache.</p></article>
+    <article class="panel"><h3>Routed to a cheaper model</h3><strong class="insight-value" id="explorerRouted">—</strong><p class="field-help">Share matched by your configured routing rules.</p></article>
+    <article class="panel"><h3>Export this period</h3><p class="field-help">Daily request counts, estimated savings and context tokens removed.</p><button id="exportDaily" class="text-button" disabled>Download daily CSV ↓</button></article>
+  </section>
+  <section class="activity" aria-label="Explore recent requests">
+    <div class="activity-head"><div><h3>Explore recent requests</h3><p class="field-help">Latest 25 logged events only. Filters apply to this sample, not your complete history.</p></div><button id="exportRecent" class="text-button" disabled>Export filtered CSV ↓</button></div>
+    <div class="explorer-filters"><label>Model <input id="activitySearch" type="search" placeholder="Search requested or used model"></label><label>Outcome <select id="activityOutcome"><option value="all">All outcomes</option><option value="cache">Cache hit</option><option value="routed">Routed cheaper</option><option value="default">Default model</option></select></label><button id="resetActivity" class="text-button">Reset filters</button></div>
+    <p id="explorerCount" class="field-help" role="status">Connect a key to explore recent requests.</p>
+    <div class="table-scroll"><table><thead><tr><th>Time (UTC)</th><th>Model used</th><th>Outcome</th><th>Estimated savings</th><th>Details</th></tr></thead><tbody id="explorerRows"></tbody></table></div>
+  </section>
+
   <div id="emptyState" class="empty" aria-live="polite">
     <div>
       <div class="empty-mark" aria-hidden="true">
@@ -256,18 +268,6 @@
       </div>
     </div>
 
-    <div class="activity">
-      <div class="activity-head">
-        <h3>Recent activity</h3>
-        <span class="count" id="activityCount">—</span>
-      </div>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Time</th><th>Requested</th><th>Used</th><th>Outcome</th><th>Saved</th></tr></thead>
-          <tbody id="recentBody"></tbody>
-        </table>
-      </div>
-    </div>
 
   </div>
   </section>
@@ -277,7 +277,6 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const ACTIVITY_ROWS = 6;
 
 let allDaily = [];
 let allRecent = [];
@@ -419,7 +418,9 @@ function renderDayRows(daily) {
 // breakdown for the selected window, so the period control is a real filter
 // rather than a label on a static snapshot.
 function renderForPeriod() {
-  const daily = selectedDays > 0 ? allDaily.slice(-selectedDays) : allDaily;
+  const now = new Date();
+  const start = selectedDays ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - selectedDays + 1)).toISOString().slice(0, 10) : "";
+  const daily = allDaily.filter(d => d.date >= start && d.date <= now.toISOString().slice(0, 10));
   const t = daily.reduce((acc, d) => {
     acc.requests += d.requests;
     acc.savings += d.savings;
@@ -475,31 +476,12 @@ function renderForPeriod() {
   renderSparkline(daily);
   renderDayRows(daily);
 
-  const cutoff = selectedDays > 0 && daily.length > 0 ? daily[0].date : null;
-  const rows = (cutoff ? allRecent.filter((e) => e.timestamp.slice(0, 10) >= cutoff) : allRecent).slice(0, ACTIVITY_ROWS);
-  $("activityCount").textContent = `last ${rows.length} of ${totalLogged.toLocaleString()}`;
 
-  const tbody = $("recentBody");
-  tbody.innerHTML = "";
-  if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:30px 0">No recent activity in this period.</td></tr>';
-    return;
-  }
-  for (const e of rows) {
-    const o = outcomeFor(e);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${new Date(e.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-      <td class="model">${shortModel(e.model_requested)}</td>
-      <td>${e.cache_hit ? "cache" : shortModel(e.model_used)}</td>
-      <td><span class="pill ${o.cls}"><span class="dot"></span>${o.label}</span></td>
-      <td>${fmtMoney(e.estimated_savings)}</td>`;
-    tbody.appendChild(tr);
-  }
 }
 
 function setPeriod(days) {
   selectedDays = days;
+  if ($("overviewDays").value !== String(days)) { $("overviewDays").value = String(days); $("overviewDays").dispatchEvent(new Event("change")); }
   document.querySelectorAll("#periodRow button").forEach((b) => b.classList.toggle("active", Number(b.dataset.days) === days));
   renderForPeriod();
 }
@@ -531,7 +513,7 @@ async function loadStats() {
     allDaily = stats.daily;
     allRecent = stats.recent;
     totalLogged = stats.totalRequests;
-    setPeriod(selectedDays);
+    setPeriod(Number($("overviewDays").value));
   } catch (err) {
     $("statusDot").className = "dot error";
     $("statusLabel").textContent = "Connection failed";
@@ -568,6 +550,7 @@ if (saved) {
 </script>
 <script src="/workspace.js"></script>
 <script src="/proof.js"></script>
+<script src="/activity-explorer.js"></script>
 <script src="/financial-overview.js"></script>
 </body>
 </html>
