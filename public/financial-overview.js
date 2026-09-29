@@ -71,8 +71,8 @@ function drawCostComparison(svgId, emptyId, daily) {
     svg.appendChild(node); return node;
   };
   svg.setAttribute("viewBox", "0 0 720 300");
-  element("title", {}, "Original versus optimized costs including overhead, by evaluation date");
-  element("desc", {}, daily.map((d) => `${d.date}: original ${preciseMoney(d.baseline)}, optimized including overhead ${preciseMoney(d.optimized)}`).join(". "));
+  element("title", {}, svgId === "liveCostComparison" ? "Baseline versus actual gateway cost by day" : "Original versus optimized costs including overhead, by evaluation date");
+  element("desc", {}, daily.map((d) => `${d.date}: baseline ${preciseMoney(d.baseline)}, ${svgId === "liveCostComparison" ? "actual" : "optimized including overhead"} ${preciseMoney(d.optimized)}`).join(". "));
   const left = 100, right = 695, top = 20, bottom = 251;
   const max = Math.max(...daily.map((d) => Math.max(d.baseline, d.optimized)), 0.000001) * 1.12;
   const y = (n) => bottom - (n / max) * (bottom - top);
@@ -81,23 +81,35 @@ function drawCostComparison(svgId, emptyId, daily) {
     element("line", { x1: left, x2: right, y1: y(value), y2: y(value), stroke: "#d6e0d1", "stroke-dasharray": "3 7" });
     element("text", { x: left - 12, y: y(value) + 4, fill: "#65735f", "font-size": 12, "text-anchor": "end" }, preciseMoney(value));
   }
-  if (daily.length === 1) {
-    for (const [index, key, color] of [[0, "baseline", "#889c7d"], [1, "optimized", "#4b9247"]]) {
-      const value = daily[0][key], x = left + 135 + index * 155;
-      element("rect", { x, y: y(value), width: 100, height: Math.max(0, bottom - y(value)), rx: 8, fill: color });
-      element("text", { x: x + 50, y: y(value) - 8, fill: color, "font-size": 14, "text-anchor": "middle" }, preciseMoney(value));
-    }
-    element("text", { x: (left + right) / 2, y: 282, fill: "#65735f", "font-size": 12, "text-anchor": "middle" }, daily[0].date);
-  } else {
-    const first = Date.parse(daily[0].date), last = Date.parse(daily.at(-1).date);
-    const x = (d) => left + (Date.parse(d.date) - first) / (last - first) * (right - left);
-    for (const [key, color] of [["baseline", "#889c7d"], ["optimized", "#4b9247"]]) {
-      const points = daily.map((d) => `${x(d)},${y(d[key])}`).join(" ");
-      element("polyline", { points, fill: "none", stroke: color, "stroke-width": key === "baseline" ? 2 : 3, "stroke-dasharray": key === "baseline" ? "6 6" : "none", "stroke-linejoin": "round" });
-      daily.forEach((d) => element("circle", { cx: x(d), cy: y(d[key]), r: 3, fill: color }));
-    }
-    [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])].forEach((i) => element("text", { x: x(daily[i]), y: 282, fill: "#65735f", "font-size": 12, "text-anchor": i === 0 ? "start" : i === daily.length - 1 ? "end" : "middle" }, daily[i].date));
+  // Dotted columns retain exact bar heights; dots are a texture, not token units.
+  const slot = (right - left) / daily.length;
+  const barWidth = Math.min(66, slot * 0.34);
+  const gap = Math.min(2, slot * 0.04);
+  const pitch = Math.min(11, barWidth / 2);
+  const defs = element("defs", {});
+  const labels = svgId === "liveCostComparison"
+    ? ["Baseline", "Actual"] : ["Original", "Optimized + overhead"];
+  for (const [index, key, color] of [[0, "baseline", "#889c7d"], [1, "optimized", "#4b9247"]]) {
+    const pattern = document.createElementNS(ns, "pattern");
+    const patternId = `${svgId}-${key}-dots`;
+    for (const [name, value] of Object.entries({ id: patternId, width: pitch, height: 11, patternUnits: "userSpaceOnUse" })) pattern.setAttribute(name, value);
+    const dot = document.createElementNS(ns, "circle");
+    for (const [name, value] of Object.entries({ cx: pitch / 2, cy: 5.5, r: Math.min(3.8, pitch * 0.38), fill: color })) dot.setAttribute(name, value);
+    pattern.appendChild(dot); defs.appendChild(pattern);
+    daily.forEach((day, i) => {
+      const value = day[key];
+      const center = left + slot * (i + 0.5);
+      const x = center + (index === 0 ? -barWidth - gap : gap);
+      const height = Math.max(0, bottom - y(value));
+      const label = `${day.date}: ${labels[index]} ${preciseMoney(value)}`;
+      const bar = element("rect", { x, y: y(value), width: barWidth, height, fill: `url(#${patternId})`, tabindex: 0, role: "img", "aria-label": label });
+      const title = document.createElementNS(ns, "title"); title.textContent = label; bar.appendChild(title);
+      // Exact cap preserves small nonzero values that fall between dot rows.
+      if (value > 0) element("line", { x1: x, x2: x + barWidth, y1: y(value), y2: y(value), stroke: color, "stroke-width": 1.5 });
+    });
   }
+  [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])].forEach((i) => element("text", { x: left + slot * (i + 0.5), y: 282, fill: "#65735f", "font-size": 12, "text-anchor": "middle" }, daily[i].date));
+
 }
 $("overviewDays").addEventListener("change", loadFinancialOverview);
 $("connectBtn").addEventListener("click", loadFinancialOverview);
