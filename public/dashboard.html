@@ -279,8 +279,6 @@ const $ = (id) => document.getElementById(id);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 let allDaily = [];
-let allRecent = [];
-let totalLogged = 0;
 let selectedDays = 14;
 let realKey = "";
 
@@ -432,7 +430,7 @@ function renderForPeriod() {
 
   if (t.requests === 0) {
     $("dashboard").hidden = true;
-    setEmptyState("Nothing in this window", "Try a wider time period to see earlier request activity.");
+    setEmptyState(allDaily.length ? "Nothing in this window" : "Connected and ready", allDaily.length ? "Try a wider time period to see earlier request activity." : "No requests have been logged for this key yet. Your dashboard will populate as traffic flows through Routewize.");
     return;
   }
   $("dashboard").hidden = false;
@@ -511,8 +509,6 @@ async function loadStats() {
     }
 
     allDaily = stats.daily;
-    allRecent = stats.recent;
-    totalLogged = stats.totalRequests;
     setPeriod(Number($("overviewDays").value));
   } catch (err) {
     $("statusDot").className = "dot error";

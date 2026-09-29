@@ -55,7 +55,9 @@ async function loadFinancialOverview() {
     const end = now.toISOString().slice(0, 10);
     const daily = stats.daily.filter(day => day.date >= start && day.date <= end);
     window.dispatchEvent(new CustomEvent("activity-data", {detail: {daily, recent: stats.recent, start, end}}));
-    selectedDays = days; allDaily = stats.daily; renderForPeriod();
+    selectedDays = days; allDaily = stats.daily;
+    document.querySelectorAll("#periodRow button").forEach(button => button.classList.toggle("active", Number(button.dataset.days) === days));
+    renderForPeriod();
     $("tokensSaved").textContent = daily.reduce((sum, day) => sum + (day.tokensRemoved ?? 0), 0).toLocaleString();
   } catch (err) {
     if (err.name !== "AbortError") $("moneyStatus").textContent = err.message;
