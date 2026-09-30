@@ -299,9 +299,14 @@ These tests require local loopback sockets but no internet, provider credentials
 
 ## Additional model providers
 
-Routewize supports text chat and streaming adapters for **Gemini, OpenRouter,
-Groq, Mistral, DeepSeek, Together AI, Fireworks, xAI, and Cerebras**, alongside
-OpenAI and Anthropic. See [PROVIDERS.md](PROVIDERS.md) for credentials, required
-provider-qualified pricing, supported features, and offline-vs-live validation.
-`GET /api/providers` (customer authentication required) lists supported provider
-IDs and whether that customer has configured a key; it never returns secrets.
+**Live offering: OpenAI and Anthropic only.** Text chat and streaming adapters for
+**Gemini, OpenRouter, Groq, Mistral, DeepSeek, Together AI, Fireworks, xAI, and
+Cerebras** are built and offline-tested but kept on **standby**: config loading
+rejects any route to them until an operator activates the provider — only after
+a customer asks for it and it has been verified against that customer's account —
+with `ROUTEWIZE_ACTIVATE_PROVIDERS=groq,deepseek` (comma-separated; restart to
+change). Don't advertise standby providers. See [PROVIDERS.md](PROVIDERS.md) for
+the activation checklist, credentials and required provider-qualified pricing.
+`GET /api/providers` (customer authentication required) lists each provider ID
+with its `status` (`live`, `activated` or `standby`) and whether that customer
+has configured a key; it never returns secrets.

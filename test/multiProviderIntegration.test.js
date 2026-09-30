@@ -76,7 +76,8 @@ async function fixture(t, provider, mode = "success") {
     };
     await import('./src/server.js');
   `], { cwd: dir, env: { PATH: process.env.PATH, PORT: "0", CUSTOMERS_CONFIG: path.join(dir, "customers.json"),
-    DOTENV_CONFIG_PATH: path.join(dir, "absent.env"), PRICING_SOURCE: "static", EMBEDDING_PROVIDER: "mock" },
+    DOTENV_CONFIG_PATH: path.join(dir, "absent.env"), PRICING_SOURCE: "static", EMBEDDING_PROVIDER: "mock",
+    ROUTEWIZE_ACTIVATE_PROVIDERS: provider },
     stdio: ["ignore", "pipe", "pipe", "ipc"] });
   let diagnostics = "";
   child.stdout.on("data", d => { diagnostics += d; }); child.stderr.on("data", d => { diagnostics += d; });
@@ -133,6 +134,10 @@ for (const provider of Object.keys(COMPATIBLE_PROVIDERS)) {
     const catalog = await (await f.get("/api/providers")).json();
     assert.equal(catalog.providers.length, 11);
     assert.deepEqual(catalog.providers.filter(p => p.configured).map(p => p.id), [provider]);
+    const status = Object.fromEntries(catalog.providers.map(p => [p.id, p.status]));
+    assert.equal(status.openai, "live");
+    assert.equal(status[provider], "activated");
+    assert.equal(Object.values(status).filter(s => s === "standby").length, 8);
     assert.ok(!JSON.stringify(catalog).includes("provider-key"));
     assert.equal((await f.get("/api/providers", "invalid")).status, 401);
   });

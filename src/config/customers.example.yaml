@@ -37,7 +37,9 @@ customers:
     provider_keys:
       openai: "${DEMO_AGENT_CO_OPENAI_KEY}"
       anthropic: "${DEMO_AGENT_CO_ANTHROPIC_KEY}"
-      # Optional integrations; uncomment only providers you use.
+      # STANDBY providers (built, not live-verified): routes to them are rejected
+      # unless the operator lists them in ROUTEWIZE_ACTIVATE_PROVIDERS. Only
+      # activate one when a customer asks for it -- see PROVIDERS.md.
       # gemini: "${DEMO_AGENT_CO_GEMINI_KEY}"
       # openrouter: "${DEMO_AGENT_CO_OPENROUTER_KEY}"
       # groq: "${DEMO_AGENT_CO_GROQ_KEY}"

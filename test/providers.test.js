@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { COMPATIBLE_PROVIDERS, assertProviderRoute } from "../src/providers/catalog.js";
+import { COMPATIBLE_PROVIDERS, assertProviderRoute, providerStatus } from "../src/providers/catalog.js";
 import { callCompatible, streamCompatible, normalizeUsage } from "../src/providers/compatible.js";
 import { validateProviderConfig } from "../src/providers/config.js";
 import { estimateRouteCost } from "../src/logging/routeCost.js";
@@ -52,13 +52,28 @@ for (const [provider, profile] of Object.entries(COMPATIBLE_PROVIDERS)) {
 }
 
 test("new-provider routes require their own credentials and qualified pricing", () => {
+  const activated = { ROUTEWIZE_ACTIVATE_PROVIDERS: "groq" };
   const customer = { default: { provider: "groq", model: "same-model" }, provider_keys: { groq: "key" }, evaluation: { pricing: { "groq/same-model": rates } } };
-  validateProviderConfig(customer);
+  validateProviderConfig(customer, activated);
   assert.equal(estimateRouteCost(customer, customer.default, 10, 3), 0.000032);
   assert.throws(() => estimateRouteCost(customer, { provider: "together", model: "same-model" }, 10, 3));
-  delete customer.provider_keys.groq; assert.throws(() => validateProviderConfig(customer));
+  delete customer.provider_keys.groq; assert.throws(() => validateProviderConfig(customer, activated), /provider_keys\.groq/);
   assert.throws(() => assertProviderRoute({ provider: "typo", model: "gpt-4o" }));
   assert.throws(() => assertProviderRoute({ provider: "constructor", model: "x" }));
+});
+
+test("standby providers cannot be routed to until explicitly activated", () => {
+  const customer = { default: { provider: "deepseek", model: "deepseek-chat" }, provider_keys: { deepseek: "key" },
+    evaluation: { pricing: { "deepseek/deepseek-chat": rates } } };
+  assert.throws(() => validateProviderConfig(customer, {}), /standby.*ROUTEWIZE_ACTIVATE_PROVIDERS=deepseek/);
+  assert.throws(() => validateProviderConfig(customer, { ROUTEWIZE_ACTIVATE_PROVIDERS: "groq" }), /standby/);
+  assert.doesNotThrow(() => validateProviderConfig(customer, { ROUTEWIZE_ACTIVATE_PROVIDERS: " groq , deepseek " }));
+  // live providers never need activation; unknown names in the variable are ignored
+  assert.doesNotThrow(() => validateProviderConfig({ default: { provider: "openai", model: "gpt-4o" } }, {}));
+  assert.equal(providerStatus("anthropic", {}), "live");
+  assert.equal(providerStatus("gemini", {}), "standby");
+  assert.equal(providerStatus("gemini", { ROUTEWIZE_ACTIVATE_PROVIDERS: "gemini" }), "activated");
+  assert.equal(providerStatus("madeup", { ROUTEWIZE_ACTIVATE_PROVIDERS: "madeup" }), "unsupported");
 });
 
 test("DeepSeek cached tokens normalize without double counting", () => {

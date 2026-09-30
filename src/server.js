@@ -20,7 +20,7 @@ import { scheduleNearMissVerification } from "./cache/nearMissVerification.js";
 import { selectRoute } from "./router/rules.js";
 import { decide } from "./decision/index.js";
 import { callProvider, streamProvider } from "./providers/registry.js";
-import { PROVIDER_IDS, isCompatibleProvider } from "./providers/catalog.js";
+import { PROVIDER_IDS, isCompatibleProvider, providerStatus } from "./providers/catalog.js";
 import { estimateRouteCost } from "./logging/routeCost.js";
 import { loadRemotePricing } from "./logging/pricing.js";
 import { logRequestEvent } from "./logging/logger.js";
@@ -73,8 +73,8 @@ app.get("/healthz", (req, res) => res.json({ ok: true }));
 app.use("/v1/evaluations", authMiddleware(CONFIG_PATH), evaluationRouter());
 
 app.get("/api/providers", authMiddleware(CONFIG_PATH), (req, res) => {
-  res.json({ providers: PROVIDER_IDS.map(id => ({ id, configured: Boolean(req.customer.provider_keys?.[id]),
-    capabilities: ["text_chat", "streaming"], live_verified: false })) });
+  res.json({ providers: PROVIDER_IDS.map(id => ({ id, status: providerStatus(id), configured: Boolean(req.customer.provider_keys?.[id]),
+    capabilities: ["text_chat", "streaming"] })) });
 });
 
 app.get("/api/stats", authMiddleware(CONFIG_PATH), (req, res) => {

@@ -15,6 +15,19 @@ export const PROVIDER_IDS = Object.freeze(["openai", "anthropic", ...Object.keys
 export const isCompatibleProvider = provider => Object.hasOwn(COMPATIBLE_PROVIDERS, provider);
 export const isSupportedProvider = provider => PROVIDER_IDS.includes(provider);
 
+// Team decision 2026-09-29: only OpenAI and Anthropic are live offerings. The compatible
+// adapters are on standby (built and offline-tested, never live-verified) and cannot be
+// routed to until an operator activates them for a customer who asks, e.g.
+// ROUTEWIZE_ACTIVATE_PROVIDERS=groq,deepseek (read at config load; restart to change).
+export const LIVE_PROVIDERS = Object.freeze(["openai", "anthropic"]);
+export const activatedProviders = (env = process.env) =>
+  new Set((env.ROUTEWIZE_ACTIVATE_PROVIDERS ?? "").split(",").map(p => p.trim()).filter(isCompatibleProvider));
+export function providerStatus(provider, env = process.env) {
+  if (LIVE_PROVIDERS.includes(provider)) return "live";
+  if (!isCompatibleProvider(provider)) return "unsupported";
+  return activatedProviders(env).has(provider) ? "activated" : "standby";
+}
+
 export function assertProviderRoute(route) {
   if (!isSupportedProvider(route?.provider)) throw new Error("Unsupported provider in configured route");
   if (typeof route.model !== "string" || !route.model.trim()) throw new Error("Configured route requires a model ID");

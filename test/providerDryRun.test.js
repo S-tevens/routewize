@@ -20,7 +20,7 @@ test("new-provider dry run uses qualified rates and rejects missing prices", t =
       } } : {} },
     }] }));
     const result = spawnSync(process.execPath, [path.join(root, "scripts/dryRun.js"), input, config], {
-      cwd: dir, encoding: "utf8", timeout: 10000, env: { PATH: process.env.PATH, EMBEDDING_PROVIDER: "mock", PRICING_SOURCE: "static", DOTENV_CONFIG_PATH: path.join(dir, "absent.env") },
+      cwd: dir, encoding: "utf8", timeout: 10000, env: { PATH: process.env.PATH, EMBEDDING_PROVIDER: "mock", PRICING_SOURCE: "static", DOTENV_CONFIG_PATH: path.join(dir, "absent.env"), ROUTEWIZE_ACTIVATE_PROVIDERS: "together" },
     });
     assert.equal(result.status, configured ? 0 : 1, result.stderr);
     if (configured) assert.match(result.stdout, /0\.0300/);

@@ -1,10 +1,28 @@
 # Provider integrations
 
-Routewize supports **11 provider IDs** for its existing text-chat interface.
-The nine new adapters have offline SDK and HTTP fixture coverage, not live
-provider certification. Model availability, access, accepted parameters and
-quotas depend on the customer's account. Use a provider's exact model ID,
-including any organization/account prefix; Routewize does not invent aliases.
+Routewize knows **11 provider IDs** for its existing text-chat interface.
+**Only `openai` and `anthropic` are live.** The nine others are on **standby**
+(team decision 2026-09-29): built, with offline SDK and HTTP fixture coverage,
+but never verified against a real account, and not advertised. Config loading
+rejects routes to a standby provider until it is activated.
+
+**Activating a standby provider (only when a customer asks for it):**
+
+1. Get the customer's key and model access for that provider, and their
+   authorization to send their workload there.
+2. Run a live smoke test on a non-production instance: one JSON request, one
+   streamed request, and one request that hits `max_tokens`. Check the answer,
+   `finish_reason`, logged spend against the provider's own usage page, and
+   that the cache does not replay the truncated answer.
+3. Add the provider to `ROUTEWIZE_ACTIVATE_PROVIDERS` (comma-separated, e.g.
+   `ROUTEWIZE_ACTIVATE_PROVIDERS=groq`) and restart. `GET /api/providers` then
+   reports it as `activated`.
+4. Record the verification in GAMEPLAN.md; once proven with real traffic, it
+   can be promoted to live in `LIVE_PROVIDERS` (`src/providers/catalog.js`).
+
+Model availability, access, accepted parameters and quotas depend on the
+customer's account. Use a provider's exact model ID, including any
+organization/account prefix; Routewize does not invent aliases.
 
 | Config ID | Destination | Primary documentation |
 |---|---|---|
