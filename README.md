@@ -305,3 +305,11 @@ OpenAI and Anthropic. See [PROVIDERS.md](PROVIDERS.md) for credentials, required
 provider-qualified pricing, supported features, and offline-vs-live validation.
 `GET /api/providers` (customer authentication required) lists supported provider
 IDs and whether that customer has configured a key; it never returns secrets.
+
+## Production hardening
+
+See [the readiness and operations guide](docs/PRODUCTION_READINESS.md) before deploying.
+`npm run check:setup` performs an offline production-config check; `npm run key:create`
+generates a scoped credential for provisioning. The default example remains a demo.
+Docker/Compose recipes are supplied but require a staging build and HTTPS ingress.
+There is no enterprise-readiness or guaranteed hard-budget claim.

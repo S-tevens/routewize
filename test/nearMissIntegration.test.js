@@ -270,7 +270,7 @@ for (const stream of [false, true]) test(`failed foreground ${stream ? "stream" 
   f.releaseStream();
   const response = await f.call(nearPrompt, { stream });
   assert.equal(response.status, stream ? 200 : 502);
-  assert.match(await response.text(), /fixture foreground failure/);
+  assert.match(await response.text(), /Upstream provider error/);
   // A following request supplies an event-loop barrier and verifies the server survived.
   assert.equal((await (await f.call(sourcePrompt)).json()).rw_meta.cache_hit, true);
   assert.equal(f.judges().length, 0);

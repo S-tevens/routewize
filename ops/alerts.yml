@@ -1,0 +1,17 @@
+groups:
+  - name: routewize
+    rules:
+      - alert: RoutewizeElevatedErrors
+        expr: sum(rate(routewize_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(routewize_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Routewize HTTP error ratio exceeds 5 percent
+      - alert: RoutewizeScrapeFailed
+        expr: up{job="routewize"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Routewize metrics scrape failed; check process, network and admin credentials

@@ -1,0 +1,6 @@
+.git
+node_modules
+.env*
+logs
+src/config/customers.yaml
+outputs

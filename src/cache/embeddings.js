@@ -25,8 +25,8 @@ export function createEmbeddingProvider({ provider, openaiClient, model }) {
   }
 
   return {
-    embed: async (text) => {
-      const response = await openaiClient.embeddings.create({ model, input: text });
+    embed: async (text, { signal } = {}) => {
+      const response = await openaiClient.embeddings.create({ model, input: text }, { signal });
       return response.data[0].embedding;
     },
   };

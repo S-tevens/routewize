@@ -269,3 +269,22 @@ OpenAI or mock; a real semantic cache needs an OpenAI embedding key even when
 its generation provider differs. Caching can be disabled for other-only setups.
 All new integrations have offline contract/HTTP coverage; none is represented
 as live-provider verified without a real-key smoke test.
+
+## Production-hardening update (2026-09-30, pending review)
+
+The gateway now validates supported text requests before provider calls, shares its
+cache namespace construction with dry-run, and isolates exact system instructions
+and optional backend-assigned user/permission scope and document version. Missing
+required scopes bypass semantic caching. Client disconnects abort foreground SDK
+requests. Credentials can be hashed/scoped/expiring/revocable while retaining the
+primary API key as tenant identity; dashboard storage is memory-only. Existing
+legacy authentication remains enabled unless explicitly disabled in customer auth.
+
+UsageGuard in the server is now PersistentUsageGuard (SQLite WAL); increments and
+rate windows are atomic across connections to one local file and survive restarts.
+This is still post-call soft spend checking, not reservation-based hard enforcement.
+Cache remains process-local; do not infer multi-host readiness from SQLite counters.
+
+Request IDs, bounded route/status metrics, readiness and bounded HTTP draining are
+implemented. See [production readiness](docs/PRODUCTION_READINESS.md) for compatibility
+changes, offline retention/restore, deployment runbook and unresolved enterprise gates.

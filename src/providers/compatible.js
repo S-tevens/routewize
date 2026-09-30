@@ -28,7 +28,7 @@ function clientFor(provider, { apiKey, timeout = 60000, maxRetries = 2 }, fetchI
 }
 
 export async function callCompatible(provider, args, { fetchImpl } = {}) {
-  const raw = await clientFor(provider, args, fetchImpl).chat.completions.create(requestBody(args));
+  const raw = await clientFor(provider, args, fetchImpl).chat.completions.create(requestBody(args), { signal: args.signal });
   const content = raw.choices?.[0]?.message?.content;
   if (typeof content !== "string" || (raw.choices?.[0]?.message?.tool_calls?.length ?? 0) > 0) throw new Error("Provider did not return supported text content");
   // A non-"stop" finish (e.g. "length" from max_tokens) is a normal, already-billed
@@ -42,7 +42,7 @@ export async function callCompatible(provider, args, { fetchImpl } = {}) {
 export async function* streamCompatible(provider, args, resultSink = {}, { fetchImpl } = {}) {
   const client = clientFor(provider, args, fetchImpl);
   const stream = await client.chat.completions.create({ ...requestBody(args), stream: true,
-    ...(COMPATIBLE_PROVIDERS[provider].streamUsage ? { stream_options: { include_usage: true } } : {}) });
+    ...(COMPATIBLE_PROVIDERS[provider].streamUsage ? { stream_options: { include_usage: true } } : {}) }, { signal: args.signal });
   let usageRaw, last, finish;
   try {
     for await (const chunk of stream) {

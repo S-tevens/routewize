@@ -6,6 +6,19 @@ customers:
   - api_key: "rw_live_demo_4a21"
     name: "Demo Agent Co"
 
+    # Production: generate credentials with npm run key:create. Store only the
+    # SHA-256 in this config. Keep api_key stable as the internal tenant identity.
+    # auth:
+    #   legacy_key_enabled: false
+    #   keys:
+    #     - sha256: "<64-character lowercase SHA-256>"
+    #       expires_at: "2026-12-31T00:00:00Z"
+    #       scopes: [read] # inference and evaluation are separate opt-in scopes
+    #       revoked: false
+    # Cache isolation: set cache.require_scope: true for end-user traffic, and
+    # send rw_cache: {scope: "user-and-permissions", version: "document-version"}
+    # from your trusted backend. rw_cache.disabled: true bypasses semantic cache.
+
     # Enable only after supplying real provider keys and your contracted rates.
     # Rates are USD per MILLION tokens. No fallback pricing is used for evaluations.
     evaluation:
