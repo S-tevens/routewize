@@ -1,5 +1,9 @@
 import "dotenv/config";
 import express from "express";
+import fs from "node:fs";
+import { createTelemetry, safeError } from "./operations/telemetry.js";
+import { validateChatRequest } from "./middleware/requestValidation.js";
+import { cachePolicy } from "./cache/policy.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { v4 as uuidv4 } from "uuid";
@@ -12,7 +16,7 @@ import { priceResponse, validateRates, promptCacheSavings } from "./evaluation/c
 
 import { authMiddleware } from "./middleware/auth.js";
 import { adminAuth } from "./middleware/adminAuth.js";
-import { UsageGuard } from "./middleware/usageGuard.js";
+import { PersistentUsageGuard } from "./middleware/persistentUsageGuard.js";
 import { watchCustomersConfig, loadCustomers } from "./config/loadConfig.js";
 import { createEmbeddingProvider } from "./cache/embeddings.js";
 import { SemanticCache } from "./cache/semanticCache.js";
@@ -23,7 +27,7 @@ import { callProvider, streamProvider } from "./providers/registry.js";
 import { PROVIDER_IDS, isCompatibleProvider } from "./providers/catalog.js";
 import { estimateRouteCost } from "./logging/routeCost.js";
 import { loadRemotePricing } from "./logging/pricing.js";
-import { logRequestEvent } from "./logging/logger.js";
+import { LOG_FILE, logRequestEvent } from "./logging/logger.js";
 import { computeStats } from "./logging/stats.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,9 +56,14 @@ function embeddingClientFor(apiKey) {
 const cache = new SemanticCache();
 setInterval(() => cache.prune(), 60_000).unref();
 watchCustomersConfig(CONFIG_PATH);
-const usageGuard = new UsageGuard();
+const usageGuard = new PersistentUsageGuard(path.join(path.dirname(LOG_FILE), "usage.sqlite"));
 
 const app = express();
+app.disable("x-powered-by");
+const telemetry = createTelemetry();
+app.use(telemetry.middleware);
+let draining = false;
+app.use((req, res, next) => draining ? res.status(503).json({ error: { message: "Server draining" } }) : next());
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -70,6 +79,14 @@ app.get("/admin", (req, res) => res.sendFile(path.join(ADMIN_DIR, "admin.html"))
 app.get("/admin/admin.js", (req, res) => res.sendFile(path.join(ADMIN_DIR, "admin.js")));
 
 app.get("/healthz", (req, res) => res.json({ ok: true }));
+app.get("/readyz", (req, res) => {
+  try {
+    loadCustomers(CONFIG_PATH);
+    fs.accessSync(path.dirname(LOG_FILE), fs.constants.W_OK);
+    res.json({ ready: true });
+  } catch { res.status(503).json({ ready: false }); }
+});
+app.get("/admin/api/metrics", adminAuth(), (req, res) => res.type("text/plain").send(telemetry.render()));
 app.use("/v1/evaluations", authMiddleware(CONFIG_PATH), evaluationRouter());
 
 app.get("/api/providers", authMiddleware(CONFIG_PATH), (req, res) => {
@@ -127,7 +144,12 @@ app.post("/v1/optimize", authMiddleware(CONFIG_PATH), (req, res) => {
   }
 });
 
-app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) => {
+const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), asyncRoute(async (req, res) => {
+  const invalid = validateChatRequest(req.body);
+  if (invalid) return res.status(400).json({ error: { message: invalid, type: "invalid_request_error" } });
+  const cancellation = new AbortController();
+  res.once("close", () => { if (!res.writableFinished) cancellation.abort(); });
   const customer = req.customer;
   const { messages, model: modelRequested, temperature, max_tokens } = req.body;
 
@@ -161,16 +183,7 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
   const route = selectRoute({ customer, promptText, forceFlagship });
   const decision = customer.routing?.decision_engine?.enabled === true ? adviseTier(messages) : null;
   const trace = req.get("x-routewize-trace") === "1" ? { route: { matched_rule: route.matchedRule, why: route.why }, decision } : undefined;
-  const cacheConfig = customer.cache ?? { enabled: false };
-
-  // Cache entries are namespaced per (customer, requested model, generation
-  // settings, resolved route) so a hit can never reuse an answer generated
-  // under different instructions or model settings — real prompt similarity
-  // is still checked with actual embeddings *within* that namespace, so
-  // semantically-similar-but-not-identical requests still hit.
-  const cacheNamespace = createHash("sha256")
-    .update(JSON.stringify({ customer: customer.api_key, model: modelRequested ?? null, temperature: temperature ?? null, max_tokens: max_tokens ?? null, route: { provider: route.provider, model: route.model } }))
-    .digest("hex");
+  const { config: cacheConfig, namespace: cacheNamespace } = cachePolicy(customer, { ...req.body, force_flagship: forceFlagship }, route);
   const embeddingText = optimized.messages.map((m) => m.content).join("\n");
 
   try {
@@ -182,7 +195,8 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
         openaiClient: EMBEDDING_PROVIDER === "openai" ? embeddingClientFor(customer.provider_keys.openai) : undefined,
         model: EMBEDDING_MODEL,
       });
-      embedding = await embedder.embed(embeddingText);
+      embedding = await embedder.embed(embeddingText, { signal: cancellation.signal });
+      cancellation.signal.throwIfAborted();
       const result = cache.find(cacheNamespace, embedding, {
         similarityThreshold: cacheConfig.similarity_threshold ?? 0.92,
         ttlSeconds: cacheConfig.ttl_seconds ?? 86400,
@@ -269,13 +283,14 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
       });
     }
 
-    const callArgs = { apiKey: providerKey, model: route.model, messages: optimized.messages, temperature, max_tokens };
+    const callArgs = { signal: cancellation.signal, apiKey: providerKey, model: route.model, messages: optimized.messages, temperature, max_tokens };
 
     if (isStream) {
       return await handleStreamingCall(res, { customer, route, modelRequested, optimized, callArgs, cache, cacheConfig, cacheNamespace, cacheResult, embedding, embeddingText, usageGuard, forceFlagship, decision, trace });
     }
 
     const result = await callProvider(route.provider, callArgs);
+    cancellation.signal.throwIfAborted();
 
     let currentEntry;
     // `complete === false` (e.g. cut off by max_tokens) must never be replayed to other requests.
@@ -340,10 +355,10 @@ app.post("/v1/chat/completions", authMiddleware(CONFIG_PATH), async (req, res) =
     );
   } catch (err) {
     if (isCompatibleProvider(route.provider)) logProviderFailure(customer, route);
-    console.error(err);
-    return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
+    safeError(err);
+    return res.status(502).json({ error: { message: "Upstream provider error", type: "upstream_error" } });
   }
-});
+}));
 
 function logProviderFailure(customer, route) {
   logRequestEvent({ customer: customer.name,
@@ -385,8 +400,8 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     first = await iterator.next();
   } catch (err) {
     if (isCompatibleProvider(route.provider)) logProviderFailure(customer, route);
-    console.error(err);
-    return res.status(502).json({ error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
+    safeError(err);
+    return res.status(502).json({ error: { message: "Upstream provider error", type: "upstream_error" } });
   }
 
   writeSseHeaders(res);
@@ -394,6 +409,7 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
   let currentEntry;
 
   const processChunk = (chunk) => {
+    callArgs.signal?.throwIfAborted();
     const delta = chunk.choices?.[0]?.delta?.content;
     if (delta) content += delta;
 
@@ -462,8 +478,8 @@ async function handleStreamingCall(res, { customer, route, modelRequested, optim
     completed = true;
   } catch (err) {
     if (isCompatibleProvider(route.provider)) logProviderFailure(customer, route);
-    console.error(err);
-    writeSseChunk(res, { error: { message: err.message ?? "Upstream provider error", type: "upstream_error" } });
+    safeError(err);
+    writeSseChunk(res, { error: { message: "Upstream provider error", type: "upstream_error" } });
   }
 
   if (completed) scheduleNearMissVerification(res, { customer, cache, cacheNamespace, cacheResult, currentEntry, usageGuard });
@@ -499,7 +515,22 @@ function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estim
 
 await loadRemotePricing();
 
-app.listen(PORT, () => {
+// Never reflect parser failures or internal exceptions (which may contain secrets).
+app.use((error, req, res, next) => {
+  safeError(error);
+  if (res.headersSent) return res.destroy();
+  const status = error.type === "entity.too.large" ? 413 : error.type === "entity.parse.failed" ? 400 : 500;
+  res.status(status).json({ error: { message: status === 500 ? "Internal server error" : "Invalid request body", request_id: req.requestId } });
+});
+loadCustomers(CONFIG_PATH); // Fail startup before accepting traffic with invalid config.
+const server = app.listen(PORT, () => {
   console.log(`routewize listening on http://localhost:${PORT}`);
   console.log(`Customer config: ${CONFIG_PATH}`);
+});
+
+for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => {
+  draining = true;
+  server.close(() => { usageGuard.close(); process.exit(0); });
+  server.closeIdleConnections();
+  setTimeout(() => process.exit(1), 30_000).unref();
 });

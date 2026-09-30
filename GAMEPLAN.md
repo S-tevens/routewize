@@ -33,7 +33,9 @@ These are shared, core mechanisms that other work depends on. Adding to them is 
 
 Not scheduled for a fix — revisit if a real customer's traffic pattern makes this a plausible attack surface (e.g. end-user-supplied, untrusted prompts at volume), not before.
 
-## Current state (as of 2026-09-23)
+## Current state (as of 2026-09-30)
+
+Production-hardening branch (pending review): scoped/expiring/revocable credentials, memory-only dashboard key, validation, trusted cache scope/version + shared dry-run namespace, disconnect cancellation, durable single-host counters, request IDs/protected metrics/readiness/drain, offline backup/retention tools, container recipe and security CI. See docs/PRODUCTION_READINESS.md for behavior changes and remaining launch gates. Validation: 193/193 tests pass; npm audit reports zero known vulnerabilities. Docker build/deployment not verified here. This does not establish enterprise readiness. Activity explorer remains separate PR #15.
 
 Merged to `master`: core proxy (now with streaming support and Anthropic prompt caching), semantic cache (namespace-isolated + real embeddings, plus opt-in async near-miss verification — see below), rules router, context optimization, cost evaluation subsystem, savings dashboard + financial overview (per-mechanism savings breakdown, plus a live-traffic baseline-vs-actual chart), a separate cross-customer admin view, dry-run tool, live pricing feed, CI running `npm test` on every PR, verified-current model IDs, config hot-reload, env-var-based secrets (interim), and per-customer rate limits/spend caps. PR #2 merged the SQLite request-log index, PR #3 the config comment-placeholder fix, PR #4 the pitch-one-pager rebrand, PR #5 offline streaming integration tests (+ a real Anthropic usage-timing bug fix, + a post-merge Windows test-portability fix), PR #6 Anthropic provider-native prompt caching, PR #7 the per-mechanism savings breakdown, PR #8 the live-traffic comparison chart, PR #11 async near-miss cache verification. The project itself was rebranded routewise → routewize (repo, code, docs) on 2026-09-17. 138 tests passing, zero open PRs/branches as of 2026-09-23. Every item from the original "next things to add" roadmap is now done or explicitly deferred (see the "later" rows below) — the roadmap continues past this point per SYSTEM_DESIGN.md §9 and the Production-readiness checklist below as new gaps surface.
 
@@ -69,6 +71,7 @@ Pick the next `todo` item top-down unless you have a specific reason not to. Bef
 | ⬜ later (explicit decision, not forgotten) | Persistent, shared cache (Redis + pgvector/Qdrant) | Team decision 2026-09-12: no Redis instance yet, deliberately deferred rather than building speculative infrastructure. Revisit once there's more than one pilot customer or a reason to run more than one server process. See SYSTEM_DESIGN.md §9 for why the in-memory cache is the actual scaling blocker when this becomes relevant. |
 | ⬜ later (explicit decision, not forgotten) | Real secrets manager (Vault/AWS/GCP Secrets Manager) | Team decision 2026-09-12: env-var substitution (above) is the interim fix. Move to a real secrets manager once there's meaningful customer volume — pick the provider based on where the app ends up hosted. |
 | ✅ Implemented (pending PR review) | Gemini text chat support | OpenAI-compatible Gemini endpoint; included in multi-provider integration. Native multimodal, tools and embeddings remain outside this change. |
+| ✅ Implemented (pending review) | Production hardening foundation | Authentication, validation, scoped cache, cancellation, operations and recovery tooling; see docs/PRODUCTION_READINESS.md. Real-provider evidence, hard budget reservations, multi-host state, SSO, legal/security assurance remain open. |
 | ⬜ blocked (not engineering) | Real customer case study | Waiting on real traffic export from a pilot customer — this is the actual product bottleneck. Not a Codex task; needs a human to go get the data. |
 
 ## Production-readiness checklist
@@ -79,7 +82,7 @@ Everything needed to go from "one unpaid pilot" to "production-grade, multiple r
 - [x] CI pipeline (`npm test` on every PR)
 - [x] Config hot-reload (no restart to change a customer's settings)
 - [x] Secrets out of plaintext — env-var substitution (interim; see "later" row for the real fix)
-- [x] Per-customer rate limits / daily spend caps
+- [x] Per-customer rate limits / soft daily spend thresholds — now durable SQLite on one host; not hard budgets (in-flight and unknown charges remain)
 - [x] Streaming support (test-coverage caveat — no live provider run yet)
 - [x] Provider-native prompt caching (Anthropic)
 - [x] Queryable request log (SQLite index, no full-file scans)
@@ -88,8 +91,8 @@ Everything needed to go from "one unpaid pilot" to "production-grade, multiple r
 - [ ] Persistent, shared cache (Redis + pgvector/Qdrant) — deliberately deferred until there's >1 customer or >1 server process
 - [ ] Real secrets manager (Vault/AWS/GCP) — deliberately deferred until there's customer volume to justify it
 - [ ] Real config store (database or admin API) instead of one hand-edited YAML file
-- [ ] Observability: metrics (request rate/latency/error rate), alerting on provider outages or config errors, log shipping beyond a flat local JSONL file, a correlation ID per request
-- [ ] Deploy pipeline + rollback plan (a `/healthz` endpoint exists; no CD, no auto-restart, no rollback story yet)
+- [ ] Observability rollout — request IDs, protected Prometheus metrics and example alert rules implemented; deploy scraping, alert delivery and log shipping
+- [ ] Deployment verification — non-root Docker/Compose recipe, readiness/drain and rollback/backup/restore runbook implemented; image build, hosted HTTPS/CD and staging restore drill pending
 - [x] Cross-customer admin view — `/admin` + `/admin/api/overview`, gated by a separate `ADMIN_TOKEN` (never a customer's `api_key`), served from its own `admin/` directory sharing no static mount, route, or auth code with the customer surface. See README's "Admin overview" section and `SYSTEM_DESIGN.md` §4.
 
 ### Accurate, trustworthy savings (customer-facing — a wrong number here is worse than no number)
@@ -103,7 +106,7 @@ Everything needed to go from "one unpaid pilot" to "production-grade, multiple r
 - [x] Self-serve-able config changes (hot-reload means no code deploy needed per customer)
 - [ ] Written onboarding flow (currently ad hoc — signup → routewize key → their provider keys → one-line base-URL swap → done, but not documented as a repeatable checklist)
 - [ ] Billing model decision — flat fee vs. percentage-of-savings vs. usage-based; percentage-of-savings is the easiest sell but requires the invoice-reconciliation item above to be airtight first
-- [ ] Support/incident process (status page, who gets paged, how a customer reports a problem)
+- [ ] Support/incident process — response template added; assign staffed owner, status page and customer escalation channel
 - [ ] Published trust/security posture (data handling, key storage, zero lock-in) — drafted informally in NON_TECHNICAL.md, not yet a customer-facing page
 
 ## Updating this file

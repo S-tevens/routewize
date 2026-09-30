@@ -285,8 +285,8 @@ let totalLogged = 0;
 let selectedDays = 14;
 let realKey = "";
 
-function storedKey() { try { return localStorage.getItem("rw_api_key") || ""; } catch { return ""; } }
-function saveKey(k) { try { localStorage.setItem("rw_api_key", k); } catch {} }
+function storedKey() { try { localStorage.removeItem("rw_api_key"); } catch {} return ""; }
+function saveKey(k) { /* Credentials stay in memory until this page closes. */ }
 
 function setEmptyState(title, message) {
   $("emptyState").innerHTML = `
@@ -298,7 +298,7 @@ function setEmptyState(title, message) {
       <p>${message}</p>
       <span class="privacy">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        Stored only in this browser
+        Kept in memory for this page only
       </span>
     </div>`;
   $("emptyState").hidden = false;

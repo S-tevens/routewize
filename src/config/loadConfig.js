@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import yaml from "js-yaml";
 import { validateProviderConfig } from "../providers/config.js";
@@ -48,14 +49,36 @@ function parseConfigFile(configPath) {
   const customers = parsed?.customers ?? [];
 
   const byApiKey = new Map();
+  const names = new Set();
+  const credentialHashes = new Set();
   for (const customer of customers) {
     if (!customer.api_key) {
       throw new Error(`Customer "${customer.name ?? "unknown"}" is missing api_key`);
+    }
+    if (typeof customer.api_key !== "string" || typeof customer.name !== "string" || !customer.name.trim()) throw new Error("Customers require string names and keys");
+    if (byApiKey.has(customer.api_key) || names.has(customer.name)) throw new Error("Customer names and keys must be unique");
+    names.add(customer.name);
+    const auth = customer.auth;
+    if (auth !== undefined) {
+      if (!auth || typeof auth !== "object" || Array.isArray(auth)) throw new Error("Invalid customer auth config");
+      if (auth.legacy_key_enabled !== undefined && typeof auth.legacy_key_enabled !== "boolean") throw new Error("legacy_key_enabled must be boolean");
+      if (auth.keys !== undefined && !Array.isArray(auth.keys)) throw new Error("auth.keys must be an array");
+      for (const key of auth.keys ?? []) {
+        if (!key || !/^[a-f0-9]{64}$/.test(key.sha256) || !Number.isFinite(Date.parse(key.expires_at)) ||
+            !Array.isArray(key.scopes) || !key.scopes.length || key.scopes.some(s => !["read", "inference", "evaluation"].includes(s)) ||
+            (key.revoked !== undefined && typeof key.revoked !== "boolean")) throw new Error("Invalid scoped credential: requires SHA-256, expiry and valid scopes");
+        if (credentialHashes.has(key.sha256)) throw new Error("Scoped credentials must be unique");
+        credentialHashes.add(key.sha256);
+      }
     }
     validateProviderConfig(customer);
     byApiKey.set(customer.api_key, customer);
   }
 
+  for (const customer of customers) {
+    const primaryHash = createHash("sha256").update(customer.api_key).digest("hex");
+    if (credentialHashes.has(primaryHash)) throw new Error("Scoped credentials must not reuse a primary tenant key");
+  }
   return { customers, byApiKey };
 }
 

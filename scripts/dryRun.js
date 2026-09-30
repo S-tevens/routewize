@@ -1,3 +1,4 @@
+import { cachePolicy } from "../src/cache/policy.js";
 import { estimateRouteCost } from "../src/logging/routeCost.js";
 import "dotenv/config";
 import fs from "node:fs";
@@ -69,7 +70,7 @@ async function main() {
     const record = JSON.parse(line);
     const customer = byApiKey.get(record.customer_api_key);
     if (!customer) {
-      console.warn(`Skipping request: unknown customer_api_key "${record.customer_api_key}"`);
+      console.warn("Skipping request: unknown customer credential");
       continue;
     }
 
@@ -82,7 +83,9 @@ async function main() {
     const baselineCost = estimateRouteCost(customer, { ...customer.default, model: baselineModel }, promptTokens, completionTokens);
     baselineCostTotal += baselineCost;
 
-    const cacheConfig = customer.cache ?? { enabled: false };
+    if (record.rw_optimization) throw new Error("Dry run does not yet simulate context optimization; use paired evaluation for that workload.");
+    const route = selectRoute({ customer, promptText, forceFlagship: record.force_flagship === true });
+    const { config: cacheConfig, namespace: cacheNamespace } = cachePolicy(customer, { ...record, model: record.model_requested }, route);
     if (cacheConfig.enabled && cacheConfig.near_miss_verification?.enabled === true) {
       throw new Error("Dry run cannot simulate paid async near-miss verification. Use a separate config with cache.near_miss_verification.enabled: false; its report represents only that disabled baseline.");
     }
@@ -93,7 +96,7 @@ async function main() {
     if (cacheConfig.enabled) {
       const embedder = embedderFor(customer);
       const embedding = await embedder.embed(promptText);
-      const result = cache.find(customer.api_key, embedding, {
+      const result = cache.find(cacheNamespace, embedding, {
         similarityThreshold: cacheConfig.similarity_threshold ?? 0.92,
         ttlSeconds: cacheConfig.ttl_seconds ?? 86400,
       });
@@ -103,13 +106,12 @@ async function main() {
         stats.cacheHits++;
         optimizedCost = 0;
       } else {
-        const route = selectRoute({ customer, promptText, forceFlagship: false });
         if (route.model !== baselineModel) {
           routedToCheaper++;
           stats.routed++;
         }
         optimizedCost = estimateRouteCost(customer, route, promptTokens, completionTokens);
-        cache.store(customer.api_key, {
+        cache.store(cacheNamespace, {
           embedding,
           promptText,
           response: { content: "[dry-run placeholder]", usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens } },
@@ -118,7 +120,6 @@ async function main() {
         });
       }
     } else {
-      const route = selectRoute({ customer, promptText, forceFlagship: false });
       if (route.model !== baselineModel) {
         routedToCheaper++;
         stats.routed++;

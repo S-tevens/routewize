@@ -183,6 +183,7 @@ shared: &provider
   openai: "\${RW_CONFIG_SECRET}"
 customers:
   - api_key: test_key
+    name: Literal values
     provider_keys: *provider
     description: \${RW_CONFIG_BOOL}
     literal: "\${RW_CONFIG_SECRET}"

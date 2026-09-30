@@ -92,3 +92,20 @@ test("wrong or missing admin token is rejected; the page shell itself needs no a
   const script = await f.get("/admin/admin.js");
   assert.equal(script.status, 200);
 });
+
+test("operational endpoints expose readiness and protected bounded metrics; invalid chat never reaches a provider", async t => {
+  const f = await fixture(t);
+  const ready = await f.get("/readyz");
+  assert.equal(ready.status, 200);
+  assert.match(ready.headers.get("x-request-id"), /^[a-f0-9-]{36}$/);
+  assert.equal(ready.headers.get("cache-control"), "no-store");
+  assert.equal((await f.get("/admin/api/metrics", "customer-one-key")).status, 401);
+  const invalid = await fetch(`${f.base}/v1/chat/completions`, { method: "POST", headers: { Authorization: "Bearer customer-one-key", "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "hello" }], max_tokens: -1 }) });
+  assert.equal(invalid.status, 400);
+  const malformed = await fetch(`${f.base}/v1/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"secret": THIS_SHOULD_NOT_LEAK}' });
+  assert.equal(malformed.status, 400);
+  assert.doesNotMatch(await malformed.text(), /THIS_SHOULD_NOT_LEAK/);
+  const metrics = await f.get("/admin/api/metrics", "the-real-admin-token");
+  assert.equal(metrics.status, 200);
+  assert.match(await metrics.text(), /routewize_requests_total/);
+});

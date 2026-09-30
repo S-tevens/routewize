@@ -18,6 +18,8 @@ async function fixture(t, provider, mode) {
   let release;
   const gate = new Promise(resolve => { release = resolve; });
   const requests = [];
+  let upstreamClosed;
+  const closedByClient = new Promise(resolve => { upstreamClosed = resolve; });
   const model = provider === "openai" ? "gpt-4o" : "claude-sonnet-4-6";
   const upstream = http.createServer(async (req, res) => {
     try {
@@ -29,13 +31,14 @@ async function fixture(t, provider, mode) {
         res.end(JSON.stringify({ error: { type: "authentication_error", message: "fixture auth failure" } }));
         return;
       }
+      res.once("close", upstreamClosed);
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       if (provider === "openai") data(res, chunk(model, { role: "assistant", content: "Hello" }));
       else {
         data(res, { type: "message_start", message: { id: "fixture", model, usage: { input_tokens: 10, output_tokens: 0, cache_read_input_tokens: 4, cache_creation_input_tokens: 0 } } }, "message_start");
         data(res, { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } }, "content_block_delta");
       }
-      if (mode === "success") await gate; // prove the client sees data before upstream completes
+      if (mode === "success" || mode === "disconnect") await gate; // prove the client sees data before upstream completes
       if (mode === "during") {
         data(res, { type: "error", error: { type: "api_error", message: "fixture stream failure" } }, provider === "anthropic" ? "error" : undefined);
       } else if (provider === "openai") {
@@ -102,7 +105,7 @@ async function fixture(t, provider, mode) {
     child.once("error", error => { clearTimeout(timer); reject(error); });
     child.once("exit", () => { clearTimeout(timer); reject(new Error(diagnostics)); });
   });
-  return { release, requests, model, dir, call: (stream = true) => fetch(`http://127.0.0.1:${address.port}/v1/chat/completions`, {
+  return { release, requests, model, dir, closedByClient, call: (stream = true) => fetch(`http://127.0.0.1:${address.port}/v1/chat/completions`, {
     method: "POST", headers: { Authorization: "Bearer offline-test", "Content-Type": "application/json" },
     body: JSON.stringify({ stream, messages: [{ role: "system", content: "You are a concise assistant." }, { role: "user", content: "Say hello world" }], max_tokens: 32 }), signal: AbortSignal.timeout(10000),
   }) };
@@ -193,14 +196,14 @@ for (const provider of ["openai", "anthropic"]) {
         assert.match(response.headers.get("content-type"), /application\/json/);
         const body = await response.json();
         assert.equal(body.error.type, "upstream_error");
-        assert.match(body.error.message, /fixture auth failure/);
+        assert.match(body.error.message, /^Upstream provider error$/);
       } else {
         assert.equal(response.status, 200);
         assert.match(response.headers.get("content-type"), /text\/event-stream/);
         const received = events(await response.text());
         assert.ok(received.some(e => e.choices?.[0]?.delta?.content === "Hello"));
         assert.equal(received.at(-1).error.type, "upstream_error");
-        assert.match(received.at(-1).error.message, /fixture stream failure/);
+        assert.match(received.at(-1).error.message, /^Upstream provider error$/);
         assert.ok(received.every(e => !e.rw_meta && !e.usage));
       }
     }
@@ -208,3 +211,14 @@ for (const provider of ["openai", "anthropic"]) {
     assert.equal(fs.existsSync(path.join(f.dir, "logs/requests.log")), false);
   });
 }
+
+for (const provider of ["openai", "anthropic"]) test(`${provider}: disconnected streaming client cancels upstream without caching partial response`, { timeout: 10000 }, async t => {
+  const f = await fixture(t, provider, "disconnect");
+  const response = await f.call();
+  const reader = response.body.getReader();
+  await reader.read();
+  await reader.cancel();
+  await Promise.race([f.closedByClient, new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error("Upstream not cancelled")), 2000); timer.unref(); })]);
+  // The upstream is still gated: a closed socket proves cancellation rather than normal completion.
+  assert.equal(f.requests.length, 1);
+});
