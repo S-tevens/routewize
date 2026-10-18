@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { COMPATIBLE_PROVIDERS, assertProviderRoute, providerStatus } from "../src/providers/catalog.js";
+import { COMPATIBLE_PROVIDERS, assertProviderRoute, providerStatus, ignoredActivations } from "../src/providers/catalog.js";
 import { callCompatible, streamCompatible, normalizeUsage } from "../src/providers/compatible.js";
 import { validateProviderConfig } from "../src/providers/config.js";
 import { estimateRouteCost } from "../src/logging/routeCost.js";
@@ -65,10 +65,20 @@ test("new-provider routes require their own credentials and qualified pricing", 
 test("standby providers cannot be routed to until explicitly activated", () => {
   const customer = { default: { provider: "deepseek", model: "deepseek-chat" }, provider_keys: { deepseek: "key" },
     evaluation: { pricing: { "deepseek/deepseek-chat": rates } } };
-  assert.throws(() => validateProviderConfig(customer, {}), /standby.*ROUTEWIZE_ACTIVATE_PROVIDERS=deepseek/);
+  assert.throws(() => validateProviderConfig(customer, {}), /standby.*add "deepseek" to ROUTEWIZE_ACTIVATE_PROVIDERS/);
   assert.throws(() => validateProviderConfig(customer, { ROUTEWIZE_ACTIVATE_PROVIDERS: "groq" }), /standby/);
   assert.doesNotThrow(() => validateProviderConfig(customer, { ROUTEWIZE_ACTIVATE_PROVIDERS: " groq , deepseek " }));
-  // live providers never need activation; unknown names in the variable are ignored
+  assert.doesNotThrow(() => validateProviderConfig(customer, { ROUTEWIZE_ACTIVATE_PROVIDERS: "DeepSeek" }));
+  // a typo activates nothing, and startup can name it
+  assert.throws(() => validateProviderConfig(customer, { ROUTEWIZE_ACTIVATE_PROVIDERS: "deepsek" }), /standby/);
+  assert.deepEqual(ignoredActivations({ ROUTEWIZE_ACTIVATE_PROVIDERS: "deepsek, Groq, openai" }), ["deepsek", "openai"]);
+  assert.deepEqual(ignoredActivations({}), []);
+  // a standby route hidden in a rule is rejected even when the default is live
+  const ruleOnly = { default: { provider: "openai", model: "gpt-4o" }, provider_keys: { deepseek: "key" },
+    evaluation: { pricing: { "deepseek/deepseek-chat": rates } },
+    routing: { rules: [{ name: "cheap", match: {}, route_to: { provider: "deepseek", model: "deepseek-chat" } }] } };
+  assert.throws(() => validateProviderConfig(ruleOnly, {}), /standby/);
+  // live providers never need activation
   assert.doesNotThrow(() => validateProviderConfig({ default: { provider: "openai", model: "gpt-4o" } }, {}));
   assert.equal(providerStatus("anthropic", {}), "live");
   assert.equal(providerStatus("gemini", {}), "standby");

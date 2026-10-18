@@ -17,6 +17,8 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
   const start = days ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days + 1)).getTime() : -Infinity;
   const inRange = (date) => Number.isFinite(Date.parse(date)) && Date.parse(date) >= start && Date.parse(date) <= now.getTime();
   const requests = events.filter((e) => e && inRange(e.timestamp) && (e.customer_sha256 ? e.customer_sha256 === tenant : e.customer === customer.name));
+  // Background near-miss judge calls are billable but are not customer requests.
+  const verificationChecks = requests.filter((e) => e.cache_verification).length;
   const known = requests.filter((e) => money(e.financials?.provider_spend_usd) && e.financials.provider_spend_usd >= 0);
   const saved = requests.filter((e) => money(e.estimated_savings));
   // Per-mechanism breakdown of the blended cost_saved_estimate_usd above.
@@ -65,7 +67,7 @@ export function summarizeFinancials(events, receipts, customer, days = 14, now =
   const potential = qualified.reduce((n, p) => n + p.baseline - p.optimized, 0);
   const testSpendKnown = runs.filter((r) => money(r.summary?.known_provider_spend_usd));
   return {
-    days, currency: "USD", request_count: requests.length,
+    days, currency: "USD", request_count: requests.length - verificationChecks, verification_checks: verificationChecks,
     provider_spend_usd: requests.length && known.length === requests.length ? known.reduce((n, e) => n + e.financials.provider_spend_usd, 0) : null,
     known_provider_spend_usd: known.length ? known.reduce((n, e) => n + e.financials.provider_spend_usd, 0) : null,
     priced_requests: known.length, unpriced_requests: requests.length - known.length,

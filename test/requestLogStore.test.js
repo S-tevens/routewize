@@ -29,10 +29,33 @@ test("historical backfill preserves routing, optimization, date ordering and ten
   assert.deepEqual(store.stats("Acme"), {
     totalRequests: 4, cacheHits: 1, routedCheaper: 1, flagshipPassthrough: 2, totalSavings: 0.25,
     daily: [
-      { date: "2026-09-11", requests: 1, savings: -0.5, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 1, tokensRemoved: 0, documentsSelected: 0, documentsReceived: 0 },
-      { date: "2026-09-12", requests: 3, savings: 0.75, cacheHits: 1, routedCheaper: 1, flagshipPassthrough: 1, tokensRemoved: 10, documentsSelected: 2, documentsReceived: 3 },
+      { date: "2026-09-11", requests: 1, savings: -0.5, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 1, tokensRemoved: 0, documentsSelected: 0, documentsReceived: 0, verificationChecks: 0 },
+      { date: "2026-09-12", requests: 3, savings: 0.75, cacheHits: 1, routedCheaper: 1, flagshipPassthrough: 1, tokensRemoved: 10, documentsSelected: 2, documentsReceived: 3, verificationChecks: 0 },
     ], recent: events.slice(0, 4).reverse(),
   });
+});
+
+test("background near-miss checks keep their spend but are not counted as requests or flagship traffic", (t) => {
+  const { store, write } = fixture(t);
+  write([event({ matched_rule: "cheap" }), event({ cache_hit: false, matched_rule: null, estimated_savings: -0.01, cache_verification: { similarity: 0.9, outcome: "not_equivalent" } })]);
+  const stats = store.stats("Acme");
+  assert.equal(stats.totalRequests, 1);
+  assert.equal(stats.routedCheaper, 1);
+  assert.equal(stats.flagshipPassthrough, 0);
+  assert.equal(stats.totalSavings, 0.24);
+  assert.equal(stats.daily[0].verificationChecks, 1);
+  assert.equal(stats.recent.length, 1, "recent activity lists only customer requests");
+});
+
+test("rollups from an older counting version are rebuilt even when the log is unchanged", (t) => {
+  const { store, write, reopen } = fixture(t);
+  write([event(), event({ cache_verification: { outcome: "promoted" } })]);
+  store.stats("Acme");
+  const checkpoint = JSON.parse(store.db.prepare("SELECT data FROM checkpoint").get().data);
+  store.db.prepare("UPDATE checkpoint SET data = ?").run(JSON.stringify({ ...checkpoint, version: undefined }));
+  store.db.prepare("UPDATE daily SET data = ?").run(JSON.stringify({ requests: 99 }));
+  store.close();
+  assert.equal(reopen().stats("Acme").totalRequests, 1);
 });
 
 test("recent requests use append order and stay capped at 25", (t) => {

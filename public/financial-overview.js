@@ -1,4 +1,6 @@
 let overviewController;
+// Axis ticks only need to show scale; exact figures stay in labels and the chart description.
+const axisMoney = (value) => value === 0 ? "$0" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumSignificantDigits: 3 }).format(value);
 const preciseMoney = (value) => value == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: Math.abs(value) > 0 && Math.abs(value) < 1 ? 6 : 2 }).format(value);
 function clearFinancialOverview() {
   for (const id of ["providerSpend", "potentialSavings", "costSaved", "moneyRequests", "evaluationSpend", "tokensSaved"]) $(id).textContent = "—";
@@ -26,7 +28,7 @@ async function loadFinancialOverview() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || "Couldn't load financial evidence.");
     $("providerSpend").textContent = preciseMoney(data.provider_spend_usd);
-    $("providerSpendNote").textContent = data.unpriced_requests ? `${data.unpriced_requests} requests lack billing evidence. ${data.priced_requests ? `${preciseMoney(data.known_provider_spend_usd)} is known; total unavailable.` : "Total unavailable."}` : data.request_count ? "Provider-reported usage at configured rates. Excludes evaluation calls." : "No gateway requests in this period.";
+    $("providerSpendNote").textContent = data.unpriced_requests ? `${data.unpriced_requests} billable calls lack billing evidence. ${data.priced_requests ? `${preciseMoney(data.known_provider_spend_usd)} is known; total unavailable.` : "Total unavailable."}` : data.request_count ? "Provider-reported usage at configured rates. Excludes evaluation calls." : "No gateway requests in this period.";
     $("potentialSavings").textContent = preciseMoney(data.potential_savings_usd);
     $("potentialSavingsNote").textContent = data.qualified_pairs ? `${data.qualified_pairs} test pairs passed phrase checks.${data.potential_reduction_pct == null ? "" : ` ${data.potential_reduction_pct.toFixed(1)}% net reduction on those pairs.`}` : "No priced comparisons passing both answer checks yet.";
     $("costSaved").textContent = preciseMoney(data.cost_saved_estimate_usd);
@@ -38,7 +40,7 @@ async function loadFinancialOverview() {
     $("moneyRequests").textContent = data.request_count.toLocaleString();
     $("evaluationSpend").textContent = preciseMoney(data.known_evaluation_provider_spend_usd);
     $("evaluationSpendNote").textContent = data.evaluation_spend_incomplete ? "Known portion only; some charges are unknown" : "Both test arms; excludes supplied overhead";
-    $("moneyStatus").textContent = `${data.priced_requests} of ${data.request_count} gateway requests priced · ${data.evaluation_count} evaluation reports · UTC date range`;
+    $("moneyStatus").textContent = `${data.priced_requests} of ${data.priced_requests + data.unpriced_requests} billable calls priced${data.verification_checks ? ` (incl. ${data.verification_checks} cache checks)` : ""} · ${data.evaluation_count} evaluation reports · UTC date range`;
     $("comparisonNote").textContent = data.compared_pairs ? `${data.compared_pairs} priced test pairs across ${data.comparison_daily.length} days. Lower cost is better.` : "Original vs optimized cost for the same test inputs.";
     drawCostComparison("costComparison", "comparisonEmpty", data.comparison_daily);
     const liveDaily = data.live_comparison_daily ?? [];
@@ -79,7 +81,7 @@ function drawCostComparison(svgId, emptyId, daily) {
   for (let i = 0; i <= 4; i++) {
     const value = max * i / 4;
     element("line", { x1: left, x2: right, y1: y(value), y2: y(value), stroke: "#d6e0d1", "stroke-dasharray": "3 7" });
-    element("text", { x: left - 12, y: y(value) + 4, fill: "#65735f", "font-size": 12, "text-anchor": "end" }, preciseMoney(value));
+    element("text", { x: left - 12, y: y(value) + 4, fill: "#65735f", "font-size": 12, "text-anchor": "end" }, axisMoney(value));
   }
   if (daily.length === 1) {
     for (const [index, key, color] of [[0, "baseline", "#889c7d"], [1, "optimized", "#4b9247"]]) {

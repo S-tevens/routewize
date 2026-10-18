@@ -20,8 +20,13 @@ export const isSupportedProvider = provider => PROVIDER_IDS.includes(provider);
 // routed to until an operator activates them for a customer who asks, e.g.
 // ROUTEWIZE_ACTIVATE_PROVIDERS=groq,deepseek (read at config load; restart to change).
 export const LIVE_PROVIDERS = Object.freeze(["openai", "anthropic"]);
-export const activatedProviders = (env = process.env) =>
-  new Set((env.ROUTEWIZE_ACTIVATE_PROVIDERS ?? "").split(",").map(p => p.trim()).filter(isCompatibleProvider));
+const activationEntries = (env) =>
+  (env.ROUTEWIZE_ACTIVATE_PROVIDERS ?? "").split(",").map(p => p.trim().toLowerCase()).filter(Boolean);
+export const activatedProviders = (env = process.env) => new Set(activationEntries(env).filter(isCompatibleProvider));
+// Entries that activate nothing (typos, already-live or unknown IDs), so
+// startup can say why a provider the operator listed is still on standby.
+export const ignoredActivations = (env = process.env) =>
+  activationEntries(env).filter(p => !isCompatibleProvider(p));
 export function providerStatus(provider, env = process.env) {
   if (LIVE_PROVIDERS.includes(provider)) return "live";
   if (!isCompatibleProvider(provider)) return "unsupported";

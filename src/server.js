@@ -20,7 +20,7 @@ import { scheduleNearMissVerification } from "./cache/nearMissVerification.js";
 import { selectRoute } from "./router/rules.js";
 import { decide } from "./decision/index.js";
 import { callProvider, streamProvider } from "./providers/registry.js";
-import { PROVIDER_IDS, isCompatibleProvider, providerStatus } from "./providers/catalog.js";
+import { PROVIDER_IDS, isCompatibleProvider, providerStatus, ignoredActivations } from "./providers/catalog.js";
 import { estimateRouteCost } from "./logging/routeCost.js";
 import { loadRemotePricing } from "./logging/pricing.js";
 import { logRequestEvent } from "./logging/logger.js";
@@ -496,6 +496,19 @@ function buildResponse({ modelUsed, content, usage, cacheHit, matchedRule, estim
     rw_meta: { cache_hit: cacheHit, matched_rule: matchedRule, estimated_savings_usd: Number(estimatedSavings.toFixed(6)), optimization, ...(trace ? { trace } : {}) },
   };
 }
+
+// Parse the customer config before accepting traffic. Loading is otherwise
+// lazy, so an invalid file at boot would have no previous good config to fall
+// back on and every authenticated request would fail with a 500.
+try {
+  const { customers } = loadCustomers(CONFIG_PATH);
+  console.log(`Customer config loaded (${customers.length} customer(s)).`);
+} catch (err) {
+  console.error(`Refusing to start: customer config at ${CONFIG_PATH} is invalid: ${err.message}`);
+  process.exit(1);
+}
+const ignored = ignoredActivations();
+if (ignored.length) console.warn(`ROUTEWIZE_ACTIVATE_PROVIDERS: ignoring ${ignored.join(", ")} (not a standby provider ID; see PROVIDERS.md).`);
 
 await loadRemotePricing();
 

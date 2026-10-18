@@ -44,16 +44,19 @@ organization/account prefix; Routewize does not invent aliases.
    the customer authorizes sending their workload to that provider.
 2. Add the key through an environment placeholder under `provider_keys` in
    local `customers.yaml`. Never commit credentials.
-3. Select `provider` and `model` in `default` or a `routing.rules[].route_to`.
-4. Add verified rates under `evaluation.pricing` for **each new-provider model**
+3. Activate the provider (see the checklist above): add its ID to
+   `ROUTEWIZE_ACTIVATE_PROVIDERS` and restart. Hot-reload cannot activate one.
+4. Select `provider` and `model` in `default` or a `routing.rules[].route_to`.
+5. Add verified rates under `evaluation.pricing` for **each new-provider model**
    referenced by a default or rule. These are required even when live evaluation
    is disabled. Rates use USD per million tokens, with a source and date.
-5. Config hot-reload validates the update and keeps the old config if invalid.
+6. Config hot-reload validates the update and keeps the old config if invalid.
    Run a small JSON and streaming smoke test before using real customer traffic.
 
-Illustrative configuration below: replace the model placeholder and all `null`
-rates with actual values from your contract. It deliberately cannot pass
-validation unchanged, rather than silently guessing a price.
+Illustrative configuration below (needs `ROUTEWIZE_ACTIVATE_PROVIDERS=gemini`
+and a restart): replace the model placeholder and all `null` rates with actual
+values from your contract. It deliberately cannot pass validation unchanged,
+rather than silently guessing a price.
 
 ```yaml
 customers:
@@ -87,8 +90,9 @@ does not override the server's routing policy; the configured default/rules
 continue to decide the destination.
 
 Normal SDK clients keep using Routewize's `/v1/chat/completions`, including
-`stream: true`. Authenticated `GET /api/providers` returns supported IDs and
-configured-key flags. A configured flag is not a credential validity/health check.
+`stream: true`. Authenticated `GET /api/providers` returns each provider ID with its `status`
+(`live`, `activated` or `standby`) and a configured-key flag. A configured flag
+is not a credential validity/health check.
 
 ## Supported scope and boundaries
 
@@ -108,7 +112,6 @@ configured-key flags. A configured flag is not a credential validity/health chec
   non-OpenAI key, or supply their OpenAI embedding key for real semantic caching.
   Mock embeddings are for offline tests, not a production accuracy claim.
 - Near-miss verification continues to use its existing OpenAI/Anthropic judges.
-  OpenRouter chat support is separate from the Jev Decisions API feature PR.
 
 ## Cost and streaming behavior
 

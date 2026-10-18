@@ -73,3 +73,10 @@ test("date window and customer hash isolate billing evidence", () => {
   assert.equal(out.evaluation_count, 0);
   assert.equal(summarizeFinancials([], [old], customer, 0, now).evaluation_count, 1);
 });
+test("background cache checks keep their spend but are not counted as requests", () => {
+  const out = summarizeFinancials([event(2), { ...event(0.01), cache_verification: { outcome: "promoted" } }], [], customer, 14, now);
+  assert.equal(out.request_count, 1);
+  assert.equal(out.verification_checks, 1);
+  assert.equal(out.provider_spend_usd, 2.01);
+  assert.equal(out.priced_requests + out.unpriced_requests, 2);
+});

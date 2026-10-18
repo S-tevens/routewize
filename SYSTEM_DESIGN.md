@@ -244,6 +244,13 @@ configuration validation rather than accidentally calling OpenAI. Fixed endpoint
 profiles prevent caller-controlled credential redirection. Existing native
 OpenAI/Anthropic adapters and pure customer-defined rules are unchanged.
 
+Only OpenAI and Anthropic are live (`LIVE_PROVIDERS` in
+`src/providers/catalog.js`). The nine compatible adapters are on standby:
+`validateProviderConfig` rejects any default or rule route to one unless it is
+listed in `ROUTEWIZE_ACTIVATE_PROVIDERS`, which is read at config load, so
+activation needs a restart. The config is parsed at startup and the server
+refuses to boot if it is invalid; hot-reload keeps the last good config.
+
 New adapters normalize provider usage (including DeepSeek cached input and Groq
 stream metadata). Cumulative streaming usage is emitted once after a successful
 finish; missing usage or incomplete output is an error and cannot populate the
@@ -263,8 +270,9 @@ Unsupported billing categories remain unknown. Dry runs still use estimated
 uncached token costs, not invoice-verified savings or aggregator fees.
 
 The paid evaluation registry supports the new providers and still requires
-explicit confirmation and rates. `/api/providers` exposes safe per-customer
-configuration flags, not secrets or live health checks. Embeddings remain
+explicit confirmation and rates. `/api/providers` exposes each provider's status
+(live/activated/standby) and safe per-customer configuration flags, not secrets
+or live health checks. Embeddings remain
 OpenAI or mock; a real semantic cache needs an OpenAI embedding key even when
 its generation provider differs. Caching can be disabled for other-only setups.
 All new integrations have offline contract/HTTP coverage; none is represented

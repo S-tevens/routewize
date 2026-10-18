@@ -7,7 +7,7 @@ export function validateProviderConfig(customer, env = process.env) {
     if (!route) continue;
     assertProviderRoute(route);
     if (providerStatus(route.provider, env) === "standby") {
-      throw new Error(`Provider "${route.provider}" is on standby (built, not live-verified). Verify it with the customer's account, then set ROUTEWIZE_ACTIVATE_PROVIDERS=${route.provider} to activate it.`);
+      throw new Error(`Provider "${route.provider}" is on standby (built, not live-verified). Verify it with the customer's account, then add "${route.provider}" to ROUTEWIZE_ACTIVATE_PROVIDERS (comma-separated) and restart. See PROVIDERS.md.`);
     }
     if (isCompatibleProvider(route.provider)) {
       if (typeof customer.provider_keys?.[route.provider] !== "string" || !customer.provider_keys[route.provider].trim()) {

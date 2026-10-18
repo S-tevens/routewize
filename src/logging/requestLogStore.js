@@ -3,7 +3,10 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { LOG_FILE } from "./logger.js";
 
-const emptyBucket = () => ({ requests: 0, savings: 0, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 0, tokensRemoved: 0, documentsSelected: 0, documentsReceived: 0 });
+const emptyBucket = () => ({ requests: 0, savings: 0, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 0, tokensRemoved: 0, documentsSelected: 0, documentsReceived: 0, verificationChecks: 0 });
+// Bump when ingest() changes how daily rollups are counted, so existing
+// indexes are rebuilt from the authoritative JSONL instead of mixing rules.
+const ROLLUP_VERSION = 2;
 const number = (value) => typeof value === "number" && Number.isFinite(value) ? value : 0;
 
 // Rebuildable index: the JSONL file remains authoritative, including writes by
@@ -50,8 +53,15 @@ export class RequestLogStore {
     const date = event.timestamp.slice(0, 10);
     const existing = this.getDay.get(customer, date);
     const bucket = existing ? JSON.parse(existing.data) : emptyBucket();
-    bucket.requests++;
     bucket.savings += number(event.estimated_savings);
+    // Background near-miss judge calls cost money (counted in savings above)
+    // but are not customer requests and never pass through the router.
+    if (event.cache_verification) {
+      bucket.verificationChecks = number(bucket.verificationChecks) + 1;
+      this.putDay.run(customer, date, JSON.stringify(bucket));
+      return;
+    }
+    bucket.requests++;
     bucket.tokensRemoved += number(event.optimization?.estimated_tokens_removed);
     bucket.documentsSelected += number(event.optimization?.context_documents_selected);
     bucket.documentsReceived += number(event.optimization?.context_documents_received);
@@ -74,9 +84,9 @@ export class RequestLogStore {
       const row = this.db.prepare("SELECT data FROM checkpoint WHERE id = 1").get();
       let previous = row ? JSON.parse(row.data) : null;
       const identity = `${stat.dev}:${stat.ino}`;
-      if (previous && previous.identity === identity && previous.size === stat.size && previous.mtime === stat.mtimeMs && previous.ctime === stat.ctimeMs) return;
+      if (previous && previous.version === ROLLUP_VERSION && previous.identity === identity && previous.size === stat.size && previous.mtime === stat.mtimeMs && previous.ctime === stat.ctimeMs) return;
       // Rotation, truncation, or an in-place rewrite must discard old summaries.
-      let reset = previous && (previous.identity !== identity || stat.size <= previous.size);
+      let reset = previous && (previous.version !== ROLLUP_VERSION || previous.identity !== identity || stat.size <= previous.size);
       if (previous && !reset && previous.offset) {
         const tail = Buffer.alloc(Math.min(previous.offset, 128));
         const read = fs.readSync(fd, tail, 0, tail.length, previous.offset - tail.length);
@@ -102,7 +112,7 @@ export class RequestLogStore {
       }
       const tail = Buffer.alloc(Math.min(offset, 128));
       fs.readSync(fd, tail, 0, tail.length, offset - tail.length);
-      this.db.prepare("INSERT INTO checkpoint VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data").run(JSON.stringify({ identity, size: stat.size, mtime: stat.mtimeMs, ctime: stat.ctimeMs, offset, tail: tail.toString("base64") }));
+      this.db.prepare("INSERT INTO checkpoint VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data").run(JSON.stringify({ version: ROLLUP_VERSION, identity, size: stat.size, mtime: stat.mtimeMs, ctime: stat.ctimeMs, offset, tail: tail.toString("base64") }));
     } finally { fs.closeSync(fd); }
   }
 
@@ -117,7 +127,7 @@ export class RequestLogStore {
       out.totalSavings += day.savings;
       return out;
     }, { totalRequests: 0, cacheHits: 0, routedCheaper: 0, flagshipPassthrough: 0, totalSavings: 0 });
-    const recent = this.db.prepare("SELECT payload FROM events WHERE customer = ? ORDER BY id DESC LIMIT 25").all(customerName).map(({ payload }) => JSON.parse(payload));
+    const recent = this.db.prepare("SELECT payload FROM events WHERE customer = ? AND json_extract(payload, '$.cache_verification') IS NULL ORDER BY id DESC LIMIT 25").all(customerName).map(({ payload }) => JSON.parse(payload));
     return { ...totals, daily, recent };
   }
 

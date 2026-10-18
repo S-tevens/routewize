@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadCustomers, getCustomerByApiKey, reloadCustomers, watchCustomersConfig } from "../src/config/loadConfig.js";
 
 function tempConfigPath() {
@@ -199,4 +200,48 @@ test("all missing value variables are reported without values or comment placeho
     notes: ["\${RW_MISSING_A}", "\${RW_MISSING_B}", "\${RW_MISSING_A}"] # \${RW_COMMENT_ONLY}
 `);
   assert.throws(() => loadCustomers(configPath), { message: "Customer config references undefined environment variable(s): RW_MISSING_A, RW_MISSING_B" });
+});
+
+test("hot-reload rejects a route to a standby provider and keeps the previous config", async (t) => {
+  envFixture(t, { ROUTEWIZE_ACTIVATE_PROVIDERS: undefined });
+  const configPath = tempConfigPath();
+  t.after(() => { reloadCustomers(); fs.rmSync(path.dirname(configPath), { recursive: true, force: true }); });
+  writeConfig(configPath, BASE_CONFIG);
+  reloadCustomers();
+  loadCustomers(configPath);
+
+  const watcher = watchCustomersConfig(configPath);
+  const errors = [];
+  const originalError = console.error;
+  console.error = (message) => errors.push(String(message));
+  try {
+    writeConfig(configPath, BASE_CONFIG.replace("provider: openai\n      model: gpt-4o", "provider: groq\n      model: llama-3.3-70b-versatile")
+      .replace('anthropic: "sk-ant-plain"', 'anthropic: "sk-ant-plain"\n      groq: "gsk-plain"'));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(getCustomerByApiKey(configPath, "test_key_1").default.provider, "openai");
+    assert.ok(errors.some((e) => /standby/.test(e)), "the rejection names the standby gate");
+  } finally {
+    console.error = originalError;
+    watcher.close();
+  }
+});
+
+test("the server refuses to start on an invalid config instead of failing every request", { timeout: 15_000 }, async (t) => {
+  const { spawn } = await import("node:child_process");
+  const configPath = tempConfigPath();
+  t.after(() => fs.rmSync(path.dirname(configPath), { recursive: true, force: true }));
+  writeConfig(configPath, "customers:\n  - name: \"Broken, no api_key\"\n");
+  const child = spawn(process.execPath, ["src/server.js"], {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
+    env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, DOTENV_CONFIG_PATH: path.join(path.dirname(configPath), "missing.env"),
+      CUSTOMERS_CONFIG: configPath, PORT: "0", EMBEDDING_PROVIDER: "mock" },
+  });
+  // If a regression lets it boot, fail fast instead of hanging CI on a live server.
+  const timer = setTimeout(() => child.kill(), 10_000);
+  t.after(() => { clearTimeout(timer); child.kill(); });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const code = await new Promise((resolve) => child.on("exit", resolve));
+  assert.equal(code, 1);
+  assert.match(stderr, /Refusing to start.*missing api_key/);
 });
