@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-22
 
-This describes the system as it actually exists on `main` today, not an aspirational future version. Where something is a known gap, it's called out explicitly rather than glossed over — see [CONTEXT.md](CONTEXT.md) for the prioritized list of what to build next.
+This describes the system as it actually exists on `main` today, not an aspirational future version. Where something is a known gap, it's called out explicitly rather than glossed over — see §9 for the prioritized list of what has to change before this scales.
 
 ## 1. Goals and non-goals
 
@@ -223,7 +223,7 @@ There is no circuit breaker, no retry budget across requests, and no fallback pr
 
 ## 9. What has to change before this scales
 
-In priority order (matches [CONTEXT.md](CONTEXT.md)'s roadmap, expanded with the "why" from a systems perspective):
+In priority order, with the "why" from a systems perspective:
 
 1. ~~**CI running `npm test` on every PR.**~~ Done — `.github/workflows/test.yml`.
 2. ~~**Config hot-reload.**~~ Done — `watchCustomersConfig()` in `loadConfig.js`. Still a single flat YAML file, though; a real config store (database or admin API) is the next step once there are enough customers that hand-editing one file gets unwieldy.

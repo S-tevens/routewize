@@ -17,8 +17,9 @@ rejects routes to a standby provider until it is activated.
 3. Add the provider to `ROUTEWIZE_ACTIVATE_PROVIDERS` (comma-separated, e.g.
    `ROUTEWIZE_ACTIVATE_PROVIDERS=groq`) and restart. `GET /api/providers` then
    reports it as `activated`.
-4. Record the verification in GAMEPLAN.md; once proven with real traffic, it
-   can be promoted to live in `LIVE_PROVIDERS` (`src/providers/catalog.js`).
+4. Once proven with real traffic, promote it to live in `LIVE_PROVIDERS`
+   (`src/providers/catalog.js`) in a pull request that records the
+   verification.
 
 Model availability, access, accepted parameters and quotas depend on the
 customer's account. Use a provider's exact model ID, including any

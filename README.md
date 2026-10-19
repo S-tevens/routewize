@@ -121,7 +121,7 @@ provider_keys:
   openai: "${DEMO_AGENT_CO_OPENAI_KEY}"
 ```
 
-A referenced env var that isn't set fails loudly at startup (or reload — see below) rather than silently treating the customer as unconfigured. This is an interim improvement, not a real secrets manager — see `GAMEPLAN.md` for when that becomes worth the investment.
+A referenced env var that isn't set fails loudly at startup (or reload — see below) rather than silently treating the customer as unconfigured. This is an interim improvement, not a real secrets manager — see `SYSTEM_DESIGN.md` §9.
 
 ### Editing config without restarting
 
@@ -310,3 +310,7 @@ the activation checklist, credentials and required provider-qualified pricing.
 `GET /api/providers` (customer authentication required) lists each provider ID
 with its `status` (`live`, `activated` or `standby`) and whether that customer
 has configured a key; it never returns secrets.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

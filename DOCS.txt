@@ -1,9 +1,9 @@
 ROUTEWIZE — SOFTWARE DOCUMENTATION
 =============================================================
 Reference documentation for integrating with and operating the
-routewize proxy. For business/architecture context see CONTEXT.md
-and SYSTEM_DESIGN.md; for what to build next see GAMEPLAN.md. This
-file covers only what the software does and how to talk to it.
+routewize proxy. For architecture see SYSTEM_DESIGN.md; for setup see
+README.md. This file covers only what the software does and how to talk
+to it.
 
 Last updated: 2026-09-19
 
